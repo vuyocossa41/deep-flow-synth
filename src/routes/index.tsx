@@ -1,26 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { DemoShell } from "@/components/demo/DemoShell";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "FounderOS — See it work on your company" },
+      {
+        name: "description",
+        content:
+          "Live AI orchestration demo. Type your company name. Watch Scout, Writer, Finance, and Decision OS work together with real-time reasoning, charts, and dynamic data.",
+      },
+      { property: "og:title", content: "FounderOS — Live AI demo" },
+      {
+        property: "og:description",
+        content:
+          "AI orchestration in 60 seconds — Scout, Writer, Finance, and Decision agents reasoning live on your company name.",
+      },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  return <DemoShell />;
 }
