@@ -41,6 +41,16 @@ export interface DemoData {
   meetingsBookedPerWeek: number;
   message: string;
   competitorMoves: string[];
+  // Intelligence Layer
+  intel: {
+    category: string;
+    positioning: string;
+    pricingTier: string;
+    pricingNote: string;
+    icpDescriptor: string;
+    competitors: string[];
+    differentiators: string[];
+  };
 }
 
 const industries = ["SaaS", "DevTools", "FinTech", "AI Infra", "Vertical SaaS"];
@@ -162,5 +172,22 @@ I built something specific for this moment — would you be open to a 22-min con
     meetingsBookedPerWeek,
     message,
     competitorMoves,
+    intel: {
+      category: `${industry} · Revenue Infrastructure`,
+      positioning: `Autonomous GTM operating system for ${industry} scale-ups`,
+      pricingTier: pick(["Mid-market", "Enterprise", "Growth"], s >> 11),
+      pricingNote: `$${20 + (s % 60)}k–$${120 + (s % 80)}k ACV band`,
+      icpDescriptor: `Post-${fundingRound.toLowerCase()} ${industry} teams, 20–250 FTE, hiring GTM`,
+      competitors: [
+        pick(["Apollo.io", "Outreach", "Salesloft", "Clay"], s),
+        pick(["Gong", "Common Room", "UserGems", "Pocus"], s >> 2),
+        pick(["6sense", "Demandbase", "Koala", "RB2B"], s >> 4),
+      ],
+      differentiators: [
+        "Multi-agent orchestration vs single-agent point tools",
+        "Reasoning trace exposed to operator",
+        "Closed-loop: signal → message → revenue attribution",
+      ],
+    },
   };
 }
