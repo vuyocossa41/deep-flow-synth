@@ -60,6 +60,8 @@ export function IntelligenceScreen({ data, onComplete }: Props) {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
+      <BeforeAfterStrip />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-mind">
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-mind" />
