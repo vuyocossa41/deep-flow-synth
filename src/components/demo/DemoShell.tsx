@@ -1,21 +1,22 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateDemoData } from "@/lib/demo-data";
+import { ActivationOverlay } from "./ActivationOverlay";
 import { AgentRail } from "./AgentRail";
 import { ExecutiveBriefing } from "./ExecutiveBriefing";
 import { MouseLight } from "./MouseLight";
 import { SignalFeed } from "./SignalFeed";
 import { SystemActivityLayer } from "./SystemActivityLayer";
+import { ChaosScreen } from "./screens/ChaosScreen";
 import { DecisionScreen } from "./screens/DecisionScreen";
 import { FinanceScreen } from "./screens/FinanceScreen";
-import { InputScreen } from "./screens/InputScreen";
 import { IntelligenceScreen } from "./screens/IntelligenceScreen";
 import { NumbersScreen } from "./screens/NumbersScreen";
 import { ScoutScreen } from "./screens/ScoutScreen";
 import { WriterScreen } from "./screens/WriterScreen";
 
 const labels = [
-  "INTAKE",
+  "CURRENT REALITY",
   "CORE · INTELLIGENCE LAYER",
   "SALES · SIGNAL HUNTER",
   "SALES · CAMPAIGN ORCHESTRATOR",
@@ -35,11 +36,42 @@ const ACTIVE_AGENTS: Record<number, string[]> = {
   7: ["strategy"],
 };
 
+// Live "what each agent is doing right now" per screen
+const AGENT_TASKS: Record<number, Record<string, string>> = {
+  2: {
+    signal: "indexing public footprint",
+    icp: "mapping ICP signature",
+    market: "scanning category topology",
+    strategy: "compiling intelligence layer",
+  },
+  3: {
+    signal: "querying funding news · 7d",
+    icp: "scoring fit · 847 accounts",
+  },
+  4: {
+    campaign: "drafting opener variants",
+    signal: "checking trigger freshness",
+  },
+  5: {
+    revenue: "modelling MRR cohorts",
+    market: "benchmarking ACV band",
+  },
+  6: {
+    strategy: "ranking next-best moves",
+    revenue: "simulating CAC payback",
+    campaign: "sequencing send waves",
+  },
+  7: {
+    strategy: "logging payoff to memory",
+  },
+};
+
 const TOTAL = 7;
 
 export function DemoShell() {
   const [screen, setScreen] = useState(1);
   const [company, setCompany] = useState("");
+  const [activating, setActivating] = useState(false);
   const data = useMemo(() => generateDemoData(company || "Acme"), [company]);
 
   const go = useCallback((n: number) => {
@@ -48,6 +80,7 @@ export function DemoShell() {
 
   const restart = useCallback(() => {
     setCompany("");
+    setActivating(false);
     setScreen(1);
   }, []);
 
@@ -67,14 +100,18 @@ export function DemoShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [screen, go, restart]);
 
+  const handleActivate = useCallback((c: string) => {
+    setCompany(c);
+    setActivating(true);
+  }, []);
+
+  const finishActivation = useCallback(() => {
+    setActivating(false);
+    setScreen(2);
+  }, []);
+
   const screens = [
-    <InputScreen
-      key="1"
-      onSubmit={(c) => {
-        setCompany(c);
-        go(2);
-      }}
-    />,
+    <ChaosScreen key="1" onSubmit={handleActivate} />,
     <IntelligenceScreen key="2" data={data} onComplete={() => go(3)} />,
     <ScoutScreen key="3" data={data} onComplete={() => go(4)} />,
     <WriterScreen key="4" data={data} onComplete={() => go(5)} />,
@@ -83,16 +120,22 @@ export function DemoShell() {
     <NumbersScreen key="7" data={data} onRestart={restart} />,
   ];
 
-  const showOps = screen > 1 && screen < TOTAL;
+  const showOps = screen > 1 && screen < TOTAL && !activating;
+  const showAmbient = screen > 1; // hide cosmic noise behind chaos screen
 
   return (
     <div className="relative min-h-svh">
-      {/* AMBIENT INFRASTRUCTURE LAYERS */}
-      <SystemActivityLayer />
+      {/* AMBIENT INFRASTRUCTURE LAYERS — kept off during chaos so the red tint stays dominant */}
+      {showAmbient && <SystemActivityLayer />}
       <MouseLight />
 
       {/* Persistent intelligence chrome (only during the flow) */}
-      {showOps && <AgentRail activeIds={ACTIVE_AGENTS[screen] ?? []} />}
+      {showOps && (
+        <AgentRail
+          activeIds={ACTIVE_AGENTS[screen] ?? []}
+          tasks={AGENT_TASKS[screen] ?? {}}
+        />
+      )}
       {showOps && <SignalFeed />}
       {showOps && screen > 2 && <ExecutiveBriefing data={data} />}
 
@@ -103,10 +146,14 @@ export function DemoShell() {
           className="flex items-center gap-2 font-display text-[15px] font-bold tracking-tight"
         >
           <span className="relative inline-flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal/70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-signal" />
+            <span
+              className={`absolute inline-flex h-full w-full animate-ping rounded-full ${screen === 1 ? "bg-danger/70" : "bg-signal/70"}`}
+            />
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${screen === 1 ? "bg-danger" : "bg-signal"}`}
+            />
           </span>
-          Founder<span className="text-signal">OS</span>
+          Founder<span className={screen === 1 ? "text-danger" : "text-signal"}>OS</span>
         </button>
         <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
           {labels[screen - 1]}
@@ -125,7 +172,9 @@ export function DemoShell() {
           className="h-full"
           style={{
             background:
-              "linear-gradient(90deg, oklch(0.85 0.22 152), oklch(0.72 0.16 250))",
+              screen === 1
+                ? "linear-gradient(90deg, oklch(0.7 0.22 25), oklch(0.82 0.18 75))"
+                : "linear-gradient(90deg, oklch(0.85 0.22 152), oklch(0.72 0.16 250))",
           }}
           animate={{ width: `${((screen - 1) / (TOTAL - 1)) * 100}%` }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -144,6 +193,13 @@ export function DemoShell() {
         >
           {screens[screen - 1]}
         </motion.div>
+      </AnimatePresence>
+
+      {/* Activation transition overlay (between chaos and intelligence) */}
+      <AnimatePresence>
+        {activating && (
+          <ActivationOverlay company={company} onComplete={finishActivation} />
+        )}
       </AnimatePresence>
 
       {/* Hint */}

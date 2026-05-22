@@ -60,6 +60,8 @@ export function IntelligenceScreen({ data, onComplete }: Props) {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
+      <BeforeAfterStrip />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-mind">
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-mind" />
@@ -205,12 +207,45 @@ export function IntelligenceScreen({ data, onComplete }: Props) {
             </div>
 
             <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ delay: 0.65, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              className="relative overflow-hidden rounded-md border border-mind/40 bg-mind/[0.08] px-3 py-2.5"
+              style={{ boxShadow: "0 0 30px -6px oklch(0.75 0.17 295 / 0.45)" }}
+            >
+              <motion.div
+                aria-hidden
+                className="absolute inset-0"
+                initial={{ x: "-100%" }}
+                animate={{ x: "100%" }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, oklch(0.75 0.17 295 / 0.18), transparent)",
+                }}
+              />
+              <div className="relative">
+                <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.18em] text-mind">
+                  ◆ pattern detected
+                </div>
+                <div className="font-display text-[13px] leading-snug text-foreground">
+                  Companies with a CTO hired in the last 90 days close{" "}
+                  <span className="text-mind">3.2x faster</span> with {data.company}.
+                  <br />
+                  <span className="text-foreground/80">
+                    {847 + (data.icpScore % 80)} companies are in this state right now.
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.8 }}
+              transition={{ delay: 0.95 }}
               className="mt-2 rounded-md border border-signal/30 bg-signal-soft px-3 py-2 font-mono text-[11px] text-signal"
             >
-              ▸ Layer live · {6} agents now reasoning on {data.company}
+              ▸ Layer live · 6 agents now reasoning on {data.company}
             </motion.div>
           </motion.div>
 
@@ -257,5 +292,45 @@ function IntelRow({
         {value}
       </div>
     </div>
+  );
+}
+
+function BeforeAfterStrip() {
+  const rows = [
+    { label: "CAC", before: "€847", after: "€312", trail: "-63%" },
+    { label: "Pipeline", before: "€12.4k", after: "€186k", trail: "+15x" },
+    { label: "Reply rate", before: "2.1%", after: "11.4%", trail: "+5.4x" },
+  ];
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="mb-5 grid grid-cols-3 gap-2 rounded-lg border border-border/50 bg-surface/60 p-2 backdrop-blur"
+    >
+      {rows.map((r, i) => (
+        <motion.div
+          key={r.label}
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.15 + i * 0.1 }}
+          className="flex items-center gap-3 px-2 py-1"
+        >
+          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
+            {r.label}
+          </span>
+          <span className="font-mono text-[11px] text-danger/80 line-through">
+            {r.before}
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground/60">→</span>
+          <span className="font-mono text-[12px] font-bold text-signal">
+            {r.after}
+          </span>
+          <span className="ml-auto font-mono text-[9px] text-signal/70">
+            {r.trail}
+          </span>
+        </motion.div>
+      ))}
+    </motion.div>
   );
 }
