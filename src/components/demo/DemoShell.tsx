@@ -73,6 +73,8 @@ export function DemoShell() {
   const [screen, setScreen] = useState(1);
   const [company, setCompany] = useState("");
   const [activating, setActivating] = useState(false);
+  const [scoutData, setScoutData] = useState<ScoutResult | null>(null);
+  const [isLoadingScout, setIsLoadingScout] = useState(false);
   const data = useMemo(() => generateDemoData(company || "Acme"), [company]);
 
   const go = useCallback((n: number) => {
@@ -82,6 +84,8 @@ export function DemoShell() {
   const restart = useCallback(() => {
     setCompany("");
     setActivating(false);
+    setScoutData(null);
+    setIsLoadingScout(false);
     setScreen(1);
   }, []);
 
@@ -104,6 +108,13 @@ export function DemoShell() {
   const handleActivate = useCallback((c: string) => {
     setCompany(c);
     setActivating(true);
+    // Fire scout API in parallel with the activation overlay
+    setIsLoadingScout(true);
+    setScoutData(null);
+    runScout(c)
+      .then((res) => setScoutData(res))
+      .catch(() => setScoutData(null))
+      .finally(() => setIsLoadingScout(false));
   }, []);
 
   const finishActivation = useCallback(() => {
@@ -112,8 +123,14 @@ export function DemoShell() {
   }, []);
 
   const screens = [
-    <ChaosScreen key="1" onSubmit={handleActivate} />,
-    <IntelligenceScreen key="2" data={data} onComplete={() => go(3)} />,
+    <ChaosScreen key="1" onActivate={handleActivate} />,
+    <IntelligenceScreen
+      key="2"
+      company={company}
+      isLoading={isLoadingScout}
+      scoutData={scoutData}
+      onContinue={() => go(3)}
+    />,
     <ScoutScreen key="3" data={data} onComplete={() => go(4)} />,
     <WriterScreen key="4" data={data} onComplete={() => go(5)} />,
     <FinanceScreen key="5" data={data} onComplete={() => go(6)} />,
