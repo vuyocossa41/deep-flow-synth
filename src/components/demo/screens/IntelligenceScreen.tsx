@@ -1,336 +1,467 @@
-import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
-import type { DemoData } from "@/lib/demo-data";
-import { OrchestrationGraph } from "../OrchestrationGraph";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import type { ScoutResult } from "@/lib/scout";
 
 interface Props {
-  data: DemoData;
-  onComplete: () => void;
+  company: string;
+  isLoading: boolean;
+  scoutData: ScoutResult | null;
+  onContinue?: () => void;
+  /** Back-compat fallback; new flow uses { company, isLoading, scoutData } */
+  data?: { company: string };
+  onComplete?: () => void;
 }
 
-/**
- * Screen 2: "Building Company Intelligence Layer"
- * Cinematic boot sequence — the system wakes up around the company name.
- */
-export function IntelligenceScreen({ data, onComplete }: Props) {
-  const steps = [
-    { label: "indexing public footprint", agent: "signal" },
-    { label: "mapping ICP signature", agent: "icp" },
-    { label: "analysing market category", agent: "market" },
-    { label: "scanning competitor topology", agent: "market" },
-    { label: "modelling positioning vector", agent: "strategy" },
-    { label: "estimating pricing band", agent: "revenue" },
-    { label: "warming campaign orchestrator", agent: "campaign" },
-    { label: "compiling intelligence layer", agent: "strategy" },
-  ];
+const TERMINAL_LINES = (company: string) => [
+  `[FIRECRAWL] Reading ${company}...`,
+  `[GROQ] Analysing content and signals...`,
+  `[SCOUT] Calculating purchase propensity...`,
+  `[WRITER] Generating personalised message...`,
+];
 
-  const [done, setDone] = useState<boolean[]>(() => steps.map(() => false));
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [reveal, setReveal] = useState(false);
+export function IntelligenceScreen({
+  company,
+  isLoading,
+  scoutData,
+  onContinue,
+  data,
+  onComplete,
+}: Props) {
+  const co = company || data?.company || "Acme";
+  const lines = TERMINAL_LINES(co);
+  const [shown, setShown] = useState(0);
+  const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setShown(0);
+    if (!isLoading) return;
     const timers: number[] = [];
-    steps.forEach((_, i) => {
-      timers.push(
-        window.setTimeout(() => setActiveIdx(i), i * 380),
-      );
-      timers.push(
-        window.setTimeout(
-          () =>
-            setDone((prev) => {
-              const next = [...prev];
-              next[i] = true;
-              return next;
-            }),
-          i * 380 + 360,
-        ),
-      );
+    lines.forEach((_, i) => {
+      timers.push(window.setTimeout(() => setShown((s) => Math.max(s, i + 1)), i * 300));
     });
-    const r = window.setTimeout(() => setReveal(true), steps.length * 380 + 200);
-    const f = window.setTimeout(onComplete, steps.length * 380 + 3600);
+    // loop until data arrives
+    const loop = window.setInterval(() => {
+      setShown((s) => (s >= lines.length ? lines.length : s));
+    }, 300);
     return () => {
       timers.forEach((t) => window.clearTimeout(t));
-      window.clearTimeout(r);
-      window.clearTimeout(f);
+      window.clearInterval(loop);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
-
-  const activeAgent = steps[activeIdx]?.agent ?? "signal";
+  }, [isLoading, co]);
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
-      <BeforeAfterStrip />
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-mind">
-          <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-mind" />
-          CORE OS · BOOT SEQUENCE
-        </div>
-        <div className="font-mono text-[11px] text-muted-foreground">
-          target: <span className="text-foreground">{data.company}</span> · region:{" "}
-          <span className="text-foreground">global</span>
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.05fr]">
-        {/* Left: boot log */}
-        <div className="glass-strong rounded-2xl p-5">
-          <div className="mb-4 font-display text-lg font-bold leading-tight">
-            Building Company Intelligence Layer
-            <span className="ml-1 animate-caret text-signal">_</span>
-          </div>
-
-          <ul className="space-y-1.5 font-mono text-[12px]">
-            {steps.map((s, i) => {
-              const isDone = done[i];
-              const isActive = activeIdx === i && !isDone;
-              return (
-                <motion.li
-                  key={s.label}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{
-                    opacity: i <= activeIdx || isDone ? 1 : 0.25,
-                    x: 0,
-                  }}
-                  transition={{ duration: 0.3 }}
-                  className="flex items-center gap-2.5"
-                >
-                  <span
-                    className={`grid h-4 w-4 place-items-center rounded-sm border text-[9px] ${
-                      isDone
-                        ? "border-signal/60 bg-signal-soft text-signal"
-                        : isActive
-                          ? "animate-pulse-dot border-mind/60 text-mind"
-                          : "border-border/60 text-muted-foreground/50"
-                    }`}
-                  >
-                    {isDone ? "✓" : isActive ? "•" : ""}
-                  </span>
-                  <span
-                    className={`uppercase tracking-[0.08em] text-[10px] ${
-                      isDone
-                        ? "text-foreground/80"
-                        : isActive
-                          ? "text-mind"
-                          : "text-muted-foreground/60"
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                  {isDone && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="ml-auto font-mono text-[9px] text-signal/70"
-                    >
-                      ok
-                    </motion.span>
-                  )}
-                </motion.li>
-              );
-            })}
-          </ul>
-
-          <div className="mt-5 border-t border-border/40 pt-4 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground/60">
-            Orchestration topology
-          </div>
-          <OrchestrationGraph active={activeAgent} height={180} />
-        </div>
-
-        {/* Right: intelligence reveal */}
-        <div className="glass-strong relative overflow-hidden rounded-2xl p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              Intelligence layer · {data.company}
-            </div>
-            <div className="font-mono text-[10px] text-signal/80">
-              {reveal ? "compiled · 1.7s" : "compiling…"}
-            </div>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: reveal ? 1 : 0 }}
-            transition={{ duration: 0.6 }}
-            className="space-y-3"
-          >
-            <IntelRow label="Category" value={data.intel.category} />
-            <IntelRow label="Positioning" value={data.intel.positioning} />
-            <IntelRow
-              label="ICP"
-              value={data.intel.icpDescriptor}
-              meta={`signature ${data.icpScore}/100`}
-            />
-            <IntelRow
-              label="Pricing"
-              value={`${data.intel.pricingTier} · ${data.intel.pricingNote}`}
-            />
-
-            <div>
-              <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground/70">
-                Competitor map
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {data.intel.competitors.map((c, i) => (
-                  <motion.span
-                    key={c}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 + i * 0.08 }}
-                    className="rounded border border-border/60 bg-panel/60 px-2 py-0.5 font-mono text-[10px] text-foreground/80"
-                  >
-                    {c}
-                  </motion.span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground/70">
-                Reasoning · why this matters
-              </div>
-              <ul className="space-y-1 font-mono text-[11px] text-foreground/85">
-                {data.intel.differentiators.map((r, i) => (
-                  <motion.li
-                    key={r}
-                    initial={{ opacity: 0, x: -4 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + i * 0.1 }}
-                    className="flex gap-2"
-                  >
-                    <span className="text-mind">›</span>
-                    {r}
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 6 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: 0.65, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="relative overflow-hidden rounded-md border border-mind/40 bg-mind/[0.08] px-3 py-2.5"
-              style={{ boxShadow: "0 0 30px -6px oklch(0.75 0.17 295 / 0.45)" }}
-            >
-              <motion.div
-                aria-hidden
-                className="absolute inset-0"
-                initial={{ x: "-100%" }}
-                animate={{ x: "100%" }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent, oklch(0.75 0.17 295 / 0.18), transparent)",
-                }}
-              />
-              <div className="relative">
-                <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.18em] text-mind">
-                  ◆ pattern detected
-                </div>
-                <div className="font-display text-[13px] leading-snug text-foreground">
-                  Companies with a CTO hired in the last 90 days close{" "}
-                  <span className="text-mind">3.2x faster</span> with {data.company}.
-                  <br />
-                  <span className="text-foreground/80">
-                    {847 + (data.icpScore % 80)} companies are in this state right now.
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.95 }}
-              className="mt-2 rounded-md border border-signal/30 bg-signal-soft px-3 py-2 font-mono text-[11px] text-signal"
-            >
-              ▸ Layer live · 6 agents now reasoning on {data.company}
-            </motion.div>
-          </motion.div>
-
-          {/* shimmering sweep while compiling */}
-          {!reveal && (
-            <motion.div
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              initial={{ x: "-100%" }}
-              animate={{ x: "100%" }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }}
-              style={{
-                background:
-                  "linear-gradient(90deg, transparent, oklch(0.85 0.22 152 / 0.06), transparent)",
-              }}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function IntelRow({
-  label,
-  value,
-  meta,
-}: {
-  label: string;
-  value: string;
-  meta?: string;
-}) {
-  return (
-    <div className="border-b border-border/30 pb-2 last:border-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground/70">
-          {label}
-        </span>
-        {meta && (
-          <span className="font-mono text-[9px] text-signal/80">{meta}</span>
+    <div ref={topRef} className="mx-auto w-full max-w-5xl px-4 pb-32 pt-28">
+      <AnimatePresence mode="wait">
+        {isLoading || !scoutData ? (
+          <TerminalLoader key="loading" lines={lines.slice(0, shown)} />
+        ) : (
+          <Results
+            key="results"
+            company={co}
+            scout={scoutData}
+            onContinue={
+              onContinue ??
+              onComplete ??
+              (() => topRef.current?.scrollIntoView({ behavior: "smooth" }))
+            }
+            scrollTop={() =>
+              topRef.current?.scrollIntoView({ behavior: "smooth" })
+            }
+          />
         )}
-      </div>
-      <div className="mt-0.5 font-display text-[13px] leading-snug text-foreground/90">
-        {value}
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
 
-function BeforeAfterStrip() {
-  const rows = [
-    { label: "CAC", before: "€847", after: "€312", trail: "-63%" },
-    { label: "Pipeline", before: "€12.4k", after: "€186k", trail: "+15x" },
-    { label: "Reply rate", before: "2.1%", after: "11.4%", trail: "+5.4x" },
-  ];
+/* ───────────────────────── terminal loader ───────────────────────── */
+
+function TerminalLoader({ lines }: { lines: string[] }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="mb-5 grid grid-cols-3 gap-2 rounded-lg border border-border/50 bg-surface/60 p-2 backdrop-blur"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="mx-auto max-w-xl border p-5 font-mono text-[12px]"
+      style={{ background: "#0e0e0e", borderColor: "#1a1a1a" }}
     >
-      {rows.map((r, i) => (
-        <motion.div
-          key={r.label}
-          initial={{ opacity: 0, x: -8 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.15 + i * 0.1 }}
-          className="flex items-center gap-3 px-2 py-1"
+      <div
+        className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em]"
+        style={{ color: "#4a4845" }}
+      >
+        axon · live reasoning
+      </div>
+      <ul className="space-y-1.5">
+        {lines.map((l, i) => (
+          <motion.li
+            key={l}
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{ color: i === lines.length - 1 ? "#c8f060" : "#dedad4" }}
+          >
+            {l}
+            {i === lines.length - 1 && (
+              <span className="ml-1 animate-caret">_</span>
+            )}
+          </motion.li>
+        ))}
+      </ul>
+    </motion.div>
+  );
+}
+
+/* ───────────────────────── results ───────────────────────── */
+
+function Section({
+  index,
+  label,
+  children,
+}: {
+  index: number;
+  label?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.15, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {label && (
+        <div
+          className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em]"
+          style={{ color: "#4a4845" }}
         >
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
-            {r.label}
-          </span>
-          <span className="font-mono text-[11px] text-danger/80 line-through">
-            {r.before}
-          </span>
-          <span className="font-mono text-[10px] text-muted-foreground/60">→</span>
-          <span className="font-mono text-[12px] font-bold text-signal">
-            {r.after}
-          </span>
-          <span className="ml-auto font-mono text-[9px] text-signal/70">
-            {r.trail}
-          </span>
-        </motion.div>
-      ))}
+          {label}
+        </div>
+      )}
+      {children}
+    </motion.section>
+  );
+}
+
+function Results({
+  company,
+  scout,
+  onContinue,
+  scrollTop,
+}: {
+  company: string;
+  scout: ScoutResult;
+  onContinue: () => void;
+  scrollTop: () => void;
+}) {
+  const [spend, setSpend] = useState(5000);
+  const [copied, setCopied] = useState(false);
+  const [showCalendly, setShowCalendly] = useState(false);
+
+  const axonPrice = 1499;
+  const savings = Math.max(0, spend - axonPrice);
+  const annual = savings * 12;
+
+  const scoreColor =
+    scout.score === "HOT" ? "#c8f060" : scout.score === "WARM" ? "#f0a040" : "#4a4845";
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(scout.message);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* noop */
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-7"
+    >
+      {/* Section 1 — Company analysed */}
+      <Section index={0} label="company analysed">
+        <div
+          className="border p-4"
+          style={{ background: "#0e0e0e", borderColor: "#1a1a1a" }}
+        >
+          <div className="flex flex-wrap items-baseline gap-3">
+            <div
+              className="font-display text-[22px] font-extrabold tracking-tight"
+              style={{ color: "#dedad4" }}
+            >
+              {scout.profile.name}
+            </div>
+            <span
+              className="px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+              style={{ background: "#1a1a1a", color: "#dedad4" }}
+            >
+              {scout.profile.stage}
+            </span>
+          </div>
+          <div className="mt-1 text-[13px]" style={{ color: "#dedad4" }}>
+            {scout.profile.product}
+          </div>
+          <div
+            className="mt-2 font-mono text-[11px]"
+            style={{ color: "#4a4845" }}
+          >
+            ICP · <span style={{ color: "#dedad4" }}>{scout.profile.icp}</span>
+          </div>
+        </div>
+      </Section>
+
+      {/* Section 2 — Signal detected */}
+      <Section index={1} label="signal detected">
+        <div
+          className="border-l-2 p-4"
+          style={{
+            background: "rgba(240,160,64,0.06)",
+            borderColor: "#f0a040",
+          }}
+        >
+          <div
+            className="font-mono text-[10px] uppercase tracking-[0.18em]"
+            style={{ color: "#f0a040" }}
+          >
+            ◆ live trigger
+          </div>
+          <div className="mt-1 text-[14px]" style={{ color: "#dedad4" }}>
+            {scout.profile.signals ||
+              "No public signals — timing analysis in progress"}
+          </div>
+          {scout.profile.angle && (
+            <div
+              className="mt-2 font-mono text-[11px]"
+              style={{ color: "#4a4845" }}
+            >
+              ▸ {scout.profile.angle}
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* Section 3 — Impossible moment */}
+      <Section index={2} label="impossible moment">
+        <div
+          className="border-l-2 p-5"
+          style={{
+            background: "rgba(200,240,96,0.06)",
+            borderColor: "#c8f060",
+          }}
+        >
+          <div
+            className="font-display text-[20px] font-bold leading-snug"
+            style={{ color: "#dedad4" }}
+          >
+            Companies with this profile close{" "}
+            <span style={{ color: "#c8f060" }}>3.2× faster</span> when contacted now.
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <span
+              className="px-2 py-1 font-mono text-[11px] font-bold"
+              style={{
+                background: scoreColor,
+                color: scout.score === "COLD" ? "#dedad4" : "#040404",
+              }}
+            >
+              {scout.score}
+            </span>
+            <span
+              className="font-mono text-[13px]"
+              style={{ color: "#dedad4" }}
+            >
+              {scout.score_num}% purchase propensity
+            </span>
+          </div>
+        </div>
+      </Section>
+
+      {/* Section 4 — Message generated */}
+      <Section index={3} label="message generated">
+        <div
+          className="relative border p-4"
+          style={{ background: "#0e0e0e", borderColor: "#1a1a1a" }}
+        >
+          <button
+            onClick={copy}
+            className="absolute right-3 top-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-opacity hover:opacity-80"
+            style={{
+              background: "#1a1a1a",
+              color: copied ? "#c8f060" : "#dedad4",
+            }}
+          >
+            {copied ? "copied ✓" : "copy"}
+          </button>
+          <pre
+            className="whitespace-pre-wrap pr-16 font-mono text-[12px] leading-relaxed"
+            style={{ color: "#dedad4" }}
+          >
+            {scout.message}
+          </pre>
+        </div>
+      </Section>
+
+      {/* Section 5 — ROI widget */}
+      <Section index={4} label="your roi">
+        <div
+          className="border p-5"
+          style={{ background: "#0e0e0e", borderColor: "#1a1a1a" }}
+        >
+          <div
+            className="font-mono text-[11px]"
+            style={{ color: "#4a4845" }}
+          >
+            What you're currently spending:
+          </div>
+          <div
+            className="mt-1 font-display text-[28px] font-extrabold"
+            style={{ color: "#dedad4" }}
+          >
+            €{spend.toLocaleString("en-US")}{" "}
+            <span
+              className="font-mono text-[11px] font-normal"
+              style={{ color: "#4a4845" }}
+            >
+              /month · agency + SDR cost
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={20000}
+            step={250}
+            value={spend}
+            onChange={(e) => setSpend(Number(e.target.value))}
+            className="mt-4 w-full accent-[#c8f060]"
+            style={{ accentColor: "#c8f060" }}
+          />
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "#1a1a1a" }}>
+            <div className="text-[14px]" style={{ color: "#dedad4" }}>
+              AXON replaces this for{" "}
+              <span style={{ color: "#c8f060" }}>
+                €{axonPrice.toLocaleString("en-US")}/month
+              </span>{" "}
+              — saving you{" "}
+              <span style={{ color: "#c8f060" }}>
+                €{savings.toLocaleString("en-US")}/month
+              </span>
+            </div>
+            <div
+              className="mt-1 font-mono text-[12px]"
+              style={{ color: "#5ff0c0" }}
+            >
+              That's €{annual.toLocaleString("en-US")} saved per year
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Section 6 — Social proof */}
+      <Section index={5} label="founders running on axon">
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            { name: "Retool", line: "47 meetings in 30 days. Zero SDRs." },
+            {
+              name: "Linear",
+              line: "CAC reduced 81%. Agency cancelled month 2.",
+            },
+            {
+              name: "Cal.com",
+              line: "Pipeline up 340%. 1 founder, no growth hire.",
+            },
+          ].map((c) => (
+            <div
+              key={c.name}
+              className="border p-4"
+              style={{ background: "#0e0e0e", borderColor: "#1a1a1a" }}
+            >
+              <div
+                className="font-display text-[15px] font-bold"
+                style={{ color: "#c8f060" }}
+              >
+                {c.name}
+              </div>
+              <div
+                className="mt-1 text-[12px] leading-snug"
+                style={{ color: "#dedad4" }}
+              >
+                {c.line}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Section 7 — CTA */}
+      <Section index={6}>
+        <div
+          className="border p-6 text-center"
+          style={{
+            background: "#0e0e0e",
+            borderColor: "#1a1a1a",
+          }}
+        >
+          <div
+            className="font-display text-[24px] font-extrabold tracking-tight"
+            style={{ color: "#dedad4" }}
+          >
+            Want your system live in 48h?
+          </div>
+          <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <button
+              onClick={() => setShowCalendly(true)}
+              className="px-5 py-2.5 font-mono text-[12px] font-bold uppercase tracking-[0.16em] transition-opacity hover:opacity-90"
+              style={{ background: "#c8f060", color: "#040404" }}
+            >
+              Book onboarding →
+            </button>
+            <button
+              onClick={scrollTop}
+              className="border px-5 py-2.5 font-mono text-[12px] uppercase tracking-[0.16em] transition-colors hover:bg-white/5"
+              style={{ borderColor: "#1a1a1a", color: "#dedad4" }}
+            >
+              See how it works first
+            </button>
+          </div>
+          <div
+            className="mt-4 font-mono text-[11px]"
+            style={{ color: "#4a4845" }}
+          >
+            Zero risk · 30-day money back · Setup in 48h · {company}
+          </div>
+
+          <AnimatePresence>
+            {showCalendly && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-6 overflow-hidden border"
+                style={{ borderColor: "#1a1a1a" }}
+              >
+                <iframe
+                  title="Book onboarding"
+                  src="https://calendly.com/d/placeholder"
+                  className="h-[640px] w-full"
+                  style={{ background: "#fff" }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {onContinue !== scrollTop && (
+            <button
+              onClick={onContinue}
+              className="mt-6 font-mono text-[10px] uppercase tracking-[0.2em] underline-offset-4 hover:underline"
+              style={{ color: "#4a4845" }}
+            >
+              continue the demo →
+            </button>
+          )}
+        </div>
+      </Section>
     </motion.div>
   );
 }
