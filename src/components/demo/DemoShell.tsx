@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateDemoData } from "@/lib/demo-data";
+import { runScout, type ScoutResult } from "@/lib/scout";
 import { ActivationOverlay } from "./ActivationOverlay";
 import { AgentRail } from "./AgentRail";
 import { ExecutiveBriefing } from "./ExecutiveBriefing";
