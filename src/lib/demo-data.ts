@@ -60,7 +60,7 @@ const rounds = ["Seed extension", "Series A", "Series A extension", "Series B"];
 const quotes = [
   "need to scale pipeline fast",
   "we're hiring our first sales team",
-  "outbound is the gap right now",
+  "autonomous acquisition is the gap right now",
   "ramping up GTM next quarter",
   "looking for repeatable acquisition",
 ];
@@ -130,9 +130,9 @@ export function generateDemoData(rawCompany: string): DemoData {
     `Hiring ${hiringRole} → revenue gap signal`,
     `CEO mentioned pipeline ${1 + (s % 3) + 1}x in 14d`,
     `Burn multiple elevated (${(1.4 + (s % 6) / 10).toFixed(1)}x)`,
-    `Outbound velocity below ICP benchmark`,
+    `Acquisition velocity below ICP benchmark`,
   ];
-  const conclusion = "High outbound readiness · Move within 48h";
+  const conclusion = "High acquisition readiness · Deploy intervention within 48h";
 
   const competitorMoves = [pick(competitorList, s), pick(competitorList, s >> 6)];
 
@@ -184,7 +184,7 @@ I built something specific for this moment — would you be open to a 22-min con
         pick(["6sense", "Demandbase", "Koala", "RB2B"], s >> 4),
       ],
       differentiators: [
-        "Multi-agent orchestration vs single-agent point tools",
+        "Autonomous infrastructure orchestration vs single-system point solutions",
         "Reasoning trace exposed to operator",
         "Closed-loop: signal → message → revenue attribution",
       ],

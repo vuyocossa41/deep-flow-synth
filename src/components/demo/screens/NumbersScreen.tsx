@@ -41,7 +41,7 @@ export function NumbersScreen({ data, onRestart }: Props) {
 
   const lines: { type: "p" | "big" | "sep" | "good" | "bad"; text?: string }[] = [
     { type: "p", text: "This morning, on autopilot:" },
-    { type: "big", text: `${50 + (data.icpScore % 30)} companies analysed.` },
+    { type: "big", text: `${50 + (data.icpScore % 30)} companies analyzed.` },
     { type: "p", text: `${data.churnClients.length} churn risks identified.` },
     { type: "big", text: `Your time: 4 minutes.` },
     { type: "good", text: `Infrastructure cost: $0.15` },

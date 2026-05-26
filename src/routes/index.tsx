@@ -8,13 +8,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Live AI orchestration demo. Type your company name. Watch Scout, Writer, Finance, and Decision OS work together with real-time reasoning, charts, and dynamic data.",
+          "Live Founder Operating System demo. Enter your domain. Watch autonomous infrastructure — Scout, Writer, Finance, and Decision — reason in real time.",
       },
       { property: "og:title", content: "FounderOS — Live AI demo" },
       {
         property: "og:description",
         content:
-          "AI orchestration in 60 seconds — Scout, Writer, Finance, and Decision agents reasoning live on your company name.",
+          "FounderOS in 60 seconds — autonomous infrastructure reasoning live on your company domain.",
       },
     ],
   }),

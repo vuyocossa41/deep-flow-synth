@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useScout } from "@/hooks/useScout";
 import { generateDemoData } from "@/lib/demo-data";
-import { runScout, type ScoutResult } from "@/lib/scout";
 import { ActivationOverlay } from "./ActivationOverlay";
 import { AgentRail } from "./AgentRail";
+import { PhaseHeader } from "./PhaseHeader";
 import { ExecutiveBriefing } from "./ExecutiveBriefing";
 import { MouseLight } from "./MouseLight";
 import { SignalFeed } from "./SignalFeed";
@@ -19,8 +20,8 @@ import { WriterScreen } from "./screens/WriterScreen";
 const labels = [
   "CURRENT REALITY",
   "CORE · INTELLIGENCE LAYER",
-  "SALES · SIGNAL HUNTER",
-  "SALES · CAMPAIGN ORCHESTRATOR",
+  "ACQUISITION · SIGNAL INFRASTRUCTURE",
+  "GTM · INTERVENTION ORCHESTRATOR",
   "REVENUE OPTIMIZER",
   "STRATEGY ENGINE",
   "PAYOFF",
@@ -54,7 +55,7 @@ const AGENT_TASKS: Record<number, Record<string, string>> = {
     signal: "checking trigger freshness",
   },
   5: {
-    revenue: "modelling MRR cohorts",
+    revenue: "modeling MRR cohorts",
     market: "benchmarking ACV band",
   },
   6: {
@@ -73,8 +74,7 @@ export function DemoShell() {
   const [screen, setScreen] = useState(1);
   const [company, setCompany] = useState("");
   const [activating, setActivating] = useState(false);
-  const [scoutData, setScoutData] = useState<ScoutResult | null>(null);
-  const [isLoadingScout, setIsLoadingScout] = useState(false);
+  const { scout, result, loading, error, reset } = useScout();
   const data = useMemo(() => generateDemoData(company || "Acme"), [company]);
 
   const go = useCallback((n: number) => {
@@ -82,12 +82,11 @@ export function DemoShell() {
   }, []);
 
   const restart = useCallback(() => {
+    reset();
     setCompany("");
     setActivating(false);
-    setScoutData(null);
-    setIsLoadingScout(false);
     setScreen(1);
-  }, []);
+  }, [reset]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,17 +104,14 @@ export function DemoShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [screen, go, restart]);
 
-  const handleActivate = useCallback((c: string) => {
-    setCompany(c);
-    setActivating(true);
-    // Fire scout API in parallel with the activation overlay
-    setIsLoadingScout(true);
-    setScoutData(null);
-    runScout(c)
-      .then((res) => setScoutData(res))
-      .catch(() => setScoutData(null))
-      .finally(() => setIsLoadingScout(false));
-  }, []);
+  const handleActivate = useCallback(
+    (c: string) => {
+      setCompany(c);
+      setActivating(true);
+      void scout(c);
+    },
+    [scout],
+  );
 
   const finishActivation = useCallback(() => {
     setActivating(false);
@@ -127,8 +123,10 @@ export function DemoShell() {
     <IntelligenceScreen
       key="2"
       company={company}
-      isLoading={isLoadingScout}
-      scoutData={scoutData}
+      isLoading={loading}
+      scoutData={result}
+      error={error}
+      onRescan={() => company && void scout(company)}
       onContinue={() => go(3)}
     />,
     <ScoutScreen key="3" data={data} onComplete={() => go(4)} />,
@@ -140,9 +138,15 @@ export function DemoShell() {
 
   const showOps = screen > 1 && screen < TOTAL && !activating;
   const showAmbient = screen > 1; // hide cosmic noise behind chaos screen
+  const phase = activating
+    ? "activation"
+    : screen === 1
+      ? "chaos"
+      : "intelligence";
 
   return (
     <div className="relative min-h-svh">
+      <PhaseHeader phase={phase} onRestart={restart} />
       {/* AMBIENT INFRASTRUCTURE LAYERS — kept off during chaos so the red tint stays dominant */}
       {showAmbient && <SystemActivityLayer />}
       <MouseLight />
@@ -157,35 +161,20 @@ export function DemoShell() {
       {showOps && <SignalFeed />}
       {showOps && screen > 2 && <ExecutiveBriefing data={data} />}
 
-      {/* Header */}
-      <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4">
-        <button
-          onClick={restart}
-          className="flex items-center gap-2 font-display text-[15px] font-bold tracking-tight"
-        >
-          <span className="relative inline-flex h-2 w-2">
-            <span
-              className={`absolute inline-flex h-full w-full animate-ping rounded-full ${screen === 1 ? "bg-danger/70" : "bg-signal/70"}`}
-            />
-            <span
-              className={`relative inline-flex h-2 w-2 rounded-full ${screen === 1 ? "bg-danger" : "bg-signal"}`}
-            />
-          </span>
-          Founder<span className={screen === 1 ? "text-danger" : "text-signal"}>OS</span>
-        </button>
+      {/* Step label + progress */}
+      <div className="fixed inset-x-0 top-10 z-40 flex items-center justify-between px-5 py-2">
         <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
           {labels[screen - 1]}
           {company && screen > 1 && (
             <span className="ml-2 text-foreground/70">· {company}</span>
           )}
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
           {String(screen).padStart(2, "0")} / {String(TOTAL).padStart(2, "0")}
         </div>
-      </header>
+      </div>
 
-      {/* Progress */}
-      <div className="fixed inset-x-0 top-0 z-50 h-[2px] bg-border/40">
+      <div className="fixed inset-x-0 top-10 z-50 h-[2px] bg-border/40">
         <motion.div
           className="h-full"
           style={{

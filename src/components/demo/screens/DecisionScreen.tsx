@@ -37,7 +37,7 @@ export function DecisionScreen({ data, onComplete }: Props) {
       num: "02",
       urgency: "today",
       title: `Pipeline $${(40 + (data.icpScore % 12)).toFixed(0)}k short this month`,
-      detail: `${3 + (data.icpScore % 4)} warm leads identified · outbound drafted.`,
+      detail: `${3 + (data.icpScore % 4)} warm acquisition signals identified · strategic intervention drafted.`,
       action: "Review & approve →",
       reasoning: [
         `Top match: ${data.company} (ICP ${data.icpScore}/100)`,
@@ -53,7 +53,7 @@ export function DecisionScreen({ data, onComplete }: Props) {
       action: "View proposals →",
       reasoning: [
         `Average uplift: $${(800 + (data.icpScore % 7) * 50).toFixed(0)}/mo per account`,
-        `Avg seat utilisation > 84%`,
+        `Avg seat utilization > 84%`,
         `Predicted close rate: 62%`,
       ],
     },

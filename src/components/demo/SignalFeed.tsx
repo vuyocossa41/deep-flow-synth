@@ -10,7 +10,7 @@ interface Signal {
 const POOL: Omit<Signal, "id">[] = [
   { text: "Series A detected · infra spend +38%", kind: "ok" },
   { text: "Hiring velocity rising · 4 GTM roles", kind: "ok" },
-  { text: "Outbound stack identified · Apollo + Clay", kind: "info" },
+  { text: "Acquisition stack identified · Apollo + Clay", kind: "info" },
   { text: "Intent confidence climbing · 87%", kind: "ok" },
   { text: "Competitor launched AI mode", kind: "warn" },
   { text: "ICP match: 8 new accounts queued", kind: "info" },

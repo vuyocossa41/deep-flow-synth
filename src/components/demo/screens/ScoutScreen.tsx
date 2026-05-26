@@ -31,11 +31,11 @@ export function ScoutScreen({ data, onComplete }: Props) {
 
   const lines: Line[] = [
     { text: `$ ruflo run scout --company "${data.company}" --model kimi-k2.6`, cls: "cmd", delay: 0 },
-    { text: `→ Initialising Scout Agent (memory: ${data.industry} corpus)`, cls: "dim", delay: 320 },
+    { text: `→ Initializing Scout Agent (memory: ${data.industry} corpus)`, cls: "dim", delay: 320 },
     { text: `→ Searching funding news (last 7d)…`, cls: "dim", delay: 720 },
     { text: `→ Scanning LinkedIn CEO activity…`, cls: "dim", delay: 1200 },
     { text: `→ Checking job postings: ${data.hiringRole}…`, cls: "dim", delay: 1680 },
-    { text: `→ Analysing competitor landscape…`, cls: "dim", delay: 2160 },
+    { text: `→ Analyzing competitor landscape…`, cls: "dim", delay: 2160 },
     { text: "", cls: "dim", delay: 2400 },
     { text: `✓  SIGNAL · ${data.fundingRound} ${data.fundingAmount} — ${data.fundingDays}d ago`, cls: "ok", delay: 2600 },
     { text: `✓  SIGNAL · Hiring ${data.hiringRole}`, cls: "ok", delay: 3000 },
@@ -73,7 +73,7 @@ export function ScoutScreen({ data, onComplete }: Props) {
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-24">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Badge color="signal" label="SALES OS · SCOUT AGENT" />
+        <Badge color="signal" label="ACQUISITION · SIGNAL INFRASTRUCTURE" />
         <div className="font-mono text-[11px] text-muted-foreground">
           target: <span className="text-foreground">{data.company}</span> · ICP{" "}
           <span className="text-signal">{data.icpScore}/100</span>

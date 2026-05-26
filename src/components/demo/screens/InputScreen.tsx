@@ -49,8 +49,8 @@ export function InputScreen({ onSubmit }: Props) {
           work on your company
         </h1>
         <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-muted-foreground">
-          Type your company name. Scout analyses it in real-time. Then watch
-          Sales, Finance, and Decision OS work together.
+          Enter your company domain. Scout analyzes it in real time. Then watch
+          autonomous infrastructure run across acquisition, finance, and strategy.
         </p>
 
         <form
@@ -65,7 +65,7 @@ export function InputScreen({ onSubmit }: Props) {
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Enter your company name..."
+            placeholder="Enter your company domain..."
             autoComplete="off"
             spellCheck={false}
             className="flex-1 bg-transparent font-mono text-[15px] text-foreground caret-signal outline-none placeholder:text-muted-foreground/60"

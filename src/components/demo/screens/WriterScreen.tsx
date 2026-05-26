@@ -62,7 +62,7 @@ export function WriterScreen({ data, onComplete }: Props) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-signal">
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-signal" />
-          SALES OS · WRITER AGENT
+          GTM · INTERVENTION ORCHESTRATOR
         </div>
         <div className="font-mono text-[11px] text-muted-foreground">
           model: gpt-class · temp 0.4

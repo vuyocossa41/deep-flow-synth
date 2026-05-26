@@ -33,7 +33,7 @@ export async function mockScout(company: string): Promise<ScoutResult> {
       angle:
         "Timing signal — sales hire means they're trying to solve this manually",
     },
-    message: `Vi que a ${company} está a contratar um Head of Sales. Construí um sistema que torna esse processo 10× mais eficaz desde o dia 1 — detecta automaticamente quem está pronto para comprar antes de qualquer campanha. 3 minutos para experimentar?`,
+    message: `Saw that ${company} is hiring a Head of Sales. I built a system that makes that process 10x more effective from day one — it automatically detects who is ready to buy before any campaign runs. When you're ready to make your pipeline predictable, the system is ready to deploy.`,
     score: "HOT",
     score_num: 91,
   };
