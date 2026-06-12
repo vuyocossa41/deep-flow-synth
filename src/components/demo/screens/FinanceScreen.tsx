@@ -11,12 +11,15 @@ import {
 import type { DemoData } from "@/lib/demo-data";
 import { Sparkline } from "../Sparkline";
 
+import type { ScoutResult } from "@/lib/scout";
+
 interface Props {
   data: DemoData;
+  scoutData?: import("@/lib/scout").ScoutResult | null;
   onComplete: () => void;
 }
 
-export function FinanceScreen({ data, onComplete }: Props) {
+export function FinanceScreen({ data, scoutData, onComplete }: Props) {
   const [mrr, setMrr] = useState(0);
   const [visible, setVisible] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -290,3 +293,4 @@ function KpiCard({
     </motion.div>
   );
 }
+

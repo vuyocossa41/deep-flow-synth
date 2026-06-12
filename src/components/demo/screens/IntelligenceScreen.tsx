@@ -58,14 +58,15 @@ function PremiumCTA({ name, tier }: { name: string; tier: ReturnType<typeof getT
     <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
       className="border p-8 text-center" style={{ background: tier.bg, borderColor: tier.color }}>
       <div className="font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: tier.color }}>
-        deployment review requested
+        intelligence assessment requested
       </div>
       <div className="mt-3 font-display text-[22px] font-bold" style={{ color: "#dedad4" }}>
-        {name} is in the queue.
+        {name} is in the deployment queue.
       </div>
       <p className="mt-2 font-mono text-[12px]" style={{ color: "#4a4845" }}>
         We review applications within 24h.<br />
-        If {name} qualifies, you receive a deployment plan before the call.
+        If {name} qualifies, you receive a deployment plan before the call.<br />
+        Max 10 deployments per month. Not a marketing tactic — operational reality.
       </p>
       <div className="mt-5 grid grid-cols-3 gap-3 text-center">
         {[["24h", "Review"], ["48h", "Deploy"], ["30d", "Results or refund"]].map(([v, l]) => (
@@ -82,14 +83,29 @@ function PremiumCTA({ name, tier }: { name: string; tier: ReturnType<typeof getT
     <TiltCard className="border p-6" style={{ background: "#0a0a0a", borderColor: "#1a1a1a" }}>
       <div className="text-center">
         <div className="font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: tier.color }}>
-          {tier.label} deployment available
+          {tier.label} · revenue infrastructure deployment available
         </div>
         <div className="mt-2 font-display text-[26px] font-extrabold" style={{ color: "#dedad4" }}>
-          {name}'s pipeline is ready to become predictable.
+          {name}'s revenue is ready to become autonomous.
         </div>
         <p className="mt-2 font-mono text-[12px]" style={{ color: "#4a4845" }}>
-          AXON deploys at {name} in 48h. Acquisition infrastructure active from day 1.
+          AXON deploys at {name} in 48h. Signal intelligence active from day 1.<br />
+          Your data stays inside your infrastructure. No third-party data sharing.
         </p>
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        {[
+          { icon: "✕", label: "Not an AI SDR", sub: "No spray-and-pray outbound" },
+          { icon: "✕", label: "Not automation", sub: "No context-free sequences" },
+          { icon: "✓", label: "Infrastructure", sub: "Signal intelligence + memory + control" },
+        ].map((p) => (
+          <div key={p.label} className="border p-3 text-center" style={{ borderColor: "#1a1a1a", background: "#040404" }}>
+            <div className="font-mono text-[14px] font-bold" style={{ color: p.icon === "✓" ? tier.color : "#4a4845" }}>{p.icon}</div>
+            <div className="mt-1 font-mono text-[10px] font-bold" style={{ color: p.icon === "✓" ? "#dedad4" : "#4a4845" }}>{p.label}</div>
+            <div className="mt-1 font-mono text-[9px]" style={{ color: "#4a4845" }}>{p.sub}</div>
+          </div>
+        ))}
       </div>
 
       <motion.div
@@ -98,15 +114,15 @@ function PremiumCTA({ name, tier }: { name: string; tier: ReturnType<typeof getT
         transition={{ duration: 2, repeat: Infinity }}
         style={{ background: tier.bg }}
       >
-        <span style={{ color: tier.color }}>⚠ 2 deployment slots remaining this month</span>
-        <span style={{ color: "#4a4845" }}> · accepted by application only</span>
+        <span style={{ color: tier.color }}>⚡ {tier.priority === "CRITICAL" ? "3" : tier.priority === "ELEVATED" ? "5" : "7"} deployment slots remaining this month</span>
+        <span style={{ color: "#4a4845" }}> · accepted by application only · max 10/month</span>
       </motion.div>
 
       <div className="mt-5 grid grid-cols-3 gap-2">
         {[
-          { n: "01", title: "Review · 24h", desc: "We analyse your gap and confirm fit." },
-          { n: "02", title: "Deploy · 48h", desc: "AXON live. 2h founder context. Then autonomous." },
-          { n: "03", title: "Results · 30d", desc: "Pipeline predictable or full refund." },
+          { n: "01", title: "Review · 24h", desc: "We analyse your signal gap and confirm infrastructure fit. No commitment." },
+          { n: "02", title: "Deploy · 48h", desc: "AXON live. 2h founder context. Intelligence layer active. Then autonomous." },
+          { n: "03", title: "Results · 30d", desc: "Pipeline predictable or full refund. No fine print." },
         ].map((s) => (
           <div key={s.n} className="border p-3" style={{ borderColor: "#1a1a1a", background: "#040404" }}>
             <div className="font-mono text-[10px]" style={{ color: "#4a4845" }}>{s.n}</div>
@@ -125,10 +141,10 @@ function PremiumCTA({ name, tier }: { name: string; tier: ReturnType<typeof getT
           className="flex-1 px-5 py-3.5 font-mono text-[12px] font-bold uppercase tracking-[0.2em]"
           style={{ background: tier.color, color: "#040404" }}
         >
-          → Request deployment review
+          → Request Intelligence Assessment
         </motion.button>
         <a
-          href={`mailto:vuyo@leadflowagency.org?subject=AXON ${tier.label} Deployment — ${name}&body=Company: ${name}%0ATier: ${tier.label}%0A%0AReady to discuss deployment.`}
+          href={`mailto:vuyo@leadflowagency.org?subject=AXON ${tier.label} Deployment — ${name}&body=Company: ${name}%0ATier: ${tier.label}%0A%0AReady to discuss revenue infrastructure deployment.`}
           className="flex-1 border px-5 py-3.5 text-center font-mono text-[12px] uppercase tracking-[0.16em] transition-colors hover:bg-white/5"
           style={{ borderColor: "#1a1a1a", color: "#dedad4" }}
         >
@@ -136,7 +152,7 @@ function PremiumCTA({ name, tier }: { name: string; tier: ReturnType<typeof getT
         </a>
       </div>
       <div className="mt-4 text-center font-mono text-[10px]" style={{ color: "#4a4845" }}>
-        Zero risk · 90-day performance guarantee · Replaces current stack · {name}
+        Zero risk · 90-day performance guarantee · Your data stays in your infrastructure · {name}
       </div>
     </TiltCard>
   );
@@ -170,6 +186,8 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
 }) {
   const [copied, setCopied] = useState(false);
   const name = scout.profile.name;
+  // FIX: tier is always derived from score_num — never from scout.profile.stage
+  // This ensures the badge and banner always show the same tier
   const tier = getTier(scout.score_num ?? 50);
   const metrics = buildMetrics(scout);
   const structuralSignal = (scout as any).structural_signal ?? scout.profile.signals;
@@ -183,6 +201,10 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+
+      <div className="font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: "#4a4845" }}>
+        AXON · REVENUE INTELLIGENCE INFRASTRUCTURE · SIGNAL ANALYSIS
+      </div>
 
       {/* Tier banner */}
       <motion.div
@@ -204,14 +226,15 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
         </div>
       </motion.div>
 
-      {/* 1 — Operational Profile */}
-      <Section index={0} label={`operational profile loaded · ${name}`}>
+      {/* 1 — Signal Profile */}
+      <Section index={0} label={`signal profile loaded · ${name}`}>
         <TiltCard className="border p-5" style={{ background: "#0a0a0a", borderColor: "#1a1a1a" }}>
           <div className="flex flex-wrap items-baseline gap-3">
             <div className="font-display text-[24px] font-extrabold" style={{ color: "#dedad4" }}>{name}</div>
+            {/* FIX: badge now uses tier.label (from score) instead of scout.profile.stage (from backend) */}
             <span className="px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em]"
               style={{ background: tier.bg, color: tier.color, border: `0.5px solid ${tier.color}` }}>
-              {scout.profile.stage}
+              {tier.label}
             </span>
           </div>
           <div className="mt-2 text-[13px]" style={{ color: "#dedad4" }}>{scout.profile.product}</div>
@@ -222,7 +245,7 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
       </Section>
 
       {/* 2 — Structural Signal */}
-      <Section index={1} label={`infrastructure gap identified at ${name}`}>
+      <Section index={1} label={`revenue infrastructure gap identified at ${name}`}>
         <motion.div
           className="border-l-4 p-5"
           style={{ background: "rgba(240,160,64,0.06)", borderColor: "#f0a040" }}
@@ -241,6 +264,26 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
             This pattern creates 60–90 day delays, high CAC, and founder dependency on individual performance.
             AXON identifies this gap before the next hire starts.
           </p>
+
+          <div className="mt-4 border-t pt-4" style={{ borderColor: "#1a1a1a" }}>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: "#4a4845" }}>
+              why the current approach fails
+            </div>
+            <ul className="space-y-1.5">
+              {[
+                "AI SDRs: 11x.ai raised $74M, lost 70–80% of clients in months",
+                "Human SDRs: $100–130k/yr + 9-month ramp + turnover every 18 months",
+                "Agencies: no memory, no context, no signal detection — just templated outreach",
+                "The winner: intelligence infrastructure with human-in-the-loop control",
+              ].map((item) => (
+                <li key={item} className="flex gap-2 font-mono text-[11px]">
+                  <span style={{ color: "#f0a040" }}>›</span>
+                  <span style={{ color: "#4a4845" }}>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           {alerts.length > 0 && (
             <ul className="mt-4 space-y-2">
               {alerts.map((a: any, i: number) => (
@@ -255,17 +298,18 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
       </Section>
 
       {/* 3 — Before / After */}
-      <Section index={2} label={`what changes when AXON is operational at ${name}`}>
+      <Section index={2} label={`what changes when AXON infrastructure is operational at ${name}`}>
         <div className="relative grid gap-0 md:grid-cols-[1fr_auto_1fr]" style={{ perspective: "1000px" }}>
           <TiltCard className="border-l-4 p-5 md:pr-6" style={{ background: "rgba(240,88,112,0.06)", borderColor: "#f05870" }}>
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: "#f05870" }}>Before</div>
             <ul className="space-y-2 text-[13px]" style={{ color: "#dedad4" }}>
               {[
-                "3 SDRs managing inconsistent pipeline",
-                "Agency dependency — €3–8k/month, zero memory",
-                "Manual prospecting — founder time wasted",
+                "SDRs managing inconsistent pipeline — high cost, high turnover",
+                "Agency dependency — invoice monthly, zero signal memory",
+                "Manual prospecting — founder time destroyed",
                 "Reactive selling — no early signal detection",
-                "Revenue unpredictability every month",
+                "Revenue unpredictability — 60–90 day acquisition cycles",
+                "No intelligence layer — competitor acts first",
               ].map((item) => (
                 <li key={item} className="flex gap-2"><span style={{ color: "#f05870" }}>·</span>{item}</li>
               ))}
@@ -288,11 +332,12 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: "#c8f060" }}>After</div>
             <ul className="space-y-2 text-[13px]" style={{ color: "#dedad4" }}>
               {[
-                "AI-managed acquisition running 24/7",
-                "Continuous signal detection — intent before intervention",
-                "Autonomous pipeline generation — no headcount",
-                "Predictable revenue infrastructure — 90%+ stability",
-                "Founder operating as strategist, not salesperson",
+                "Signal intelligence running 24/7 — intent detected before competitor acts",
+                "Persistent memory — system learns ICP patterns, compounds over time",
+                "Autonomous acquisition pipeline — zero headcount dependency",
+                "Predictable revenue infrastructure — 90%+ pipeline stability",
+                "Founder as strategist — 2h/week reviewing results, not executing",
+                "Data sovereignty — your intelligence stays in your infrastructure",
               ].map((item) => (
                 <li key={item} className="flex gap-2"><span style={{ color: "#c8f060" }}>·</span>{item}</li>
               ))}
@@ -302,9 +347,9 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
       </Section>
 
       {/* 4 — Strategic Message */}
-      <Section index={3} label="strategic intervention ready">
+      <Section index={3} label="signal-based intervention · ready to deploy">
         <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.22em]" style={{ color: tier.color }}>
-          AXON · STRATEGIC INTERVENTION · READY TO DEPLOY
+          AXON · SIGNAL INTELLIGENCE · STRATEGIC INTERVENTION READY
         </div>
         <div className="relative border p-5" style={{ background: "rgba(200,240,96,0.03)", borderColor: "#c8f060" }}>
           <button type="button" onClick={copy}
@@ -319,7 +364,7 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
       </Section>
 
       {/* 5 — Dynamic Metrics */}
-      <Section index={4} label="estimated operational impact">
+      <Section index={4} label="estimated infrastructure impact">
         <div className="grid gap-3 md:grid-cols-3">
           {metrics.map((m) => (
             <TiltCard key={m.label} className="border p-5" style={{ background: "#0a0a0a", borderColor: "#1a1a1a" }}>
@@ -330,12 +375,12 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
           ))}
         </div>
         <p className="mt-4 font-mono text-[12px]" style={{ color: tier.color }}>
-          {name}: outbound operations autonomous. Pipeline predictable. Founder strategic.
+          {name}: acquisition autonomous. Pipeline predictable. Founder strategic. Data sovereign.
         </p>
       </Section>
 
       {/* 6 — Social Proof */}
-      <Section index={5} label="founders running on axon">
+      <Section index={5} label="companies running on axon infrastructure">
         <div className="grid gap-3 md:grid-cols-3">
           {PROOF.map((c) => {
             const t = getTier(c.score);
@@ -357,14 +402,14 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
       </Section>
 
       {/* 7 — What changes */}
-      <Section index={6} label="what changes in your company">
+      <Section index={6} label="what revenue infrastructure changes at your company">
         <h2 className="mb-5 font-display text-[22px] font-extrabold" style={{ color: "#dedad4" }}>
-          What AXON changes at {name}
+          What AXON infrastructure changes at {name}
         </h2>
         <div className="grid gap-3 md:grid-cols-3">
           {[
             { col: "Today", border: "#f05870", bg: "rgba(240,88,112,0.06)", text: `${scout.profile.product}. ${scout.profile.pain}` },
-            { col: "After AXON", border: "#c8f060", bg: "rgba(200,240,96,0.06)", text: "Autonomous acquisition running 24/7. Pipeline stable at 90%+. Founder spends 2h/week reviewing results." },
+            { col: "After AXON", border: "#c8f060", bg: "rgba(200,240,96,0.06)", text: "Signal intelligence running 24/7. Pipeline stable at 90%+. Founder spends 2h/week reviewing results. Data stays in your infrastructure." },
             { col: "The difference", border: tier.color, bg: tier.bg, text: metrics.map(m => `${m.value} ${m.label}`).join(" · ") },
           ].map((col) => (
             <div key={col.col} className="border-l-4 p-4" style={{ background: col.bg, borderColor: col.border }}>
@@ -375,7 +420,7 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
         </div>
         <p className="mt-6 text-center font-display text-[20px] font-bold" style={{ color: "#dedad4" }}>
           {name} stops depending on humans to grow.<br />
-          <span style={{ color: tier.color }}>It becomes a company with autonomous growth infrastructure.</span>
+          <span style={{ color: tier.color }}>It becomes a company with autonomous revenue infrastructure.</span>
         </p>
       </Section>
 
@@ -385,7 +430,7 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
         <button type="button" onClick={onContinue}
           className="mt-4 w-full font-mono text-[10px] uppercase tracking-[0.2em] hover:underline"
           style={{ color: "#4a4845" }}>
-          continue the demo →
+          continue the intelligence demo →
         </button>
       </Section>
 
@@ -394,11 +439,11 @@ function Results({ scout, onContinue, onRescan, scrollTop }: {
 }
 
 const LINES = [
-  "[FIRECRAWL] Reading {c}...",
-  "[GROQ] Analyzing content and signals...",
-  "[SCOUT] Calculating acquisition readiness...",
-  "[WRITER] Generating strategic intervention...",
-  "[AXON] Intelligence layer compiled · deploying...",
+  "[FIRECRAWL] Reading {c} infrastructure signals...",
+  "[GROQ] Analyzing revenue architecture...",
+  "[SCOUT] Calculating acquisition readiness score...",
+  "[AXON] Mapping signal graph...",
+  "[INTELLIGENCE] Compiling revenue infrastructure gap...",
 ];
 
 function LoadingState({ company }: { company: string }) {
@@ -411,7 +456,7 @@ function LoadingState({ company }: { company: string }) {
     <div className="flex min-h-[60vh] flex-col items-center justify-center">
       <div className="border p-6 w-full max-w-md" style={{ background: "#040404", borderColor: "#1a1a1a" }}>
         <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: "#4a4845" }}>
-          AXON · LIVE REASONING
+          AXON · REVENUE INTELLIGENCE · LIVE ANALYSIS
         </div>
         <ul className="space-y-2">
           {LINES.slice(0, shown).map((l, i) => (
@@ -441,14 +486,14 @@ export function IntelligenceScreen({ company, isLoading, scoutData, error, onRes
     <div className="mx-auto max-w-3xl px-5 pb-20 pt-16">
       <div className="border-l-4 p-5" style={{ borderColor: "#f05870", background: "rgba(240,88,112,0.06)" }}>
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] mb-2" style={{ color: "#f05870" }}>
-          AXON · SCAN FAILED
+          AXON · SIGNAL SCAN FAILED
         </div>
         <p className="font-mono text-[12px]" style={{ color: "#dedad4" }}>{error}</p>
         {onRescan && (
           <button type="button" onClick={onRescan}
             className="mt-4 border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] hover:bg-white/5"
             style={{ borderColor: "#1a1a1a", color: "#dedad4" }}>
-            → retry scan
+            → retry signal scan
           </button>
         )}
       </div>
@@ -467,3 +512,17 @@ export function IntelligenceScreen({ company, isLoading, scoutData, error, onRes
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

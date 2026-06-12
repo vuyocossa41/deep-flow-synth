@@ -14,6 +14,8 @@ export function WriterScreen({ data, onComplete }: Props) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.message);
   const [approved, setApproved] = useState(false);
+  const [showPause, setShowPause] = useState(false);
+  const [showButtons, setShowButtons] = useState(false);
 
   useEffect(() => {
     let i = 0;
@@ -21,6 +23,8 @@ export function WriterScreen({ data, onComplete }: Props) {
     setDone(false);
     setApproved(false);
     setEditing(false);
+    setShowPause(false);
+    setShowButtons(false);
     setEditValue(data.message);
     setCost(0);
 
@@ -30,6 +34,9 @@ export function WriterScreen({ data, onComplete }: Props) {
       if (i >= data.message.length) {
         window.clearInterval(typeInt);
         setDone(true);
+        // Fix 2 — pausa dramática 3s antes de mostrar botões
+        window.setTimeout(() => setShowPause(true), 400);
+        window.setTimeout(() => setShowButtons(true), 3400);
       }
     }, 22);
 
@@ -144,24 +151,59 @@ export function WriterScreen({ data, onComplete }: Props) {
             </div>
           )}
 
+          {/* Cost line */}
           <div className="mt-3 text-right font-mono text-[11px] text-muted-foreground">
             {done
               ? `Cost: $${cost.toFixed(4)} · Human score: 94% · Tone: warm-direct`
               : `Cost: $${cost.toFixed(4)} · generating…`}
           </div>
 
-          {done && !approved && (
+          {/* Fix 2 — pausa dramática: comparação SDR vs AXON */}
+          {showPause && !approved && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-4 rounded-lg border px-4 py-3"
+              style={{ borderColor: "rgba(240,160,64,0.3)", background: "rgba(240,160,64,0.05)" }}
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: "#f0a040" }}>
+                ◆ infrastructure vs headcount
+              </div>
+              <div className="grid grid-cols-2 gap-3 font-mono text-[11px]">
+                <div>
+                  <div style={{ color: "#4a4845" }}>Human SDR to do this:</div>
+                  <div className="mt-1 font-bold" style={{ color: "rgba(240,88,112,0.9)" }}>4 days · $400 cost</div>
+                  <div style={{ color: "#4a4845" }}>research + write + send</div>
+                </div>
+                <div>
+                  <div style={{ color: "#4a4845" }}>AXON to do this:</div>
+                  <div className="mt-1 font-bold text-signal">2s · $0.003 cost</div>
+                  <div style={{ color: "#4a4845" }}>signal → message → sent</div>
+                </div>
+              </div>
+              <div className="mt-2 font-mono text-[10px]" style={{ color: "#4a4845" }}>
+                At scale: 847 accounts × $400 SDR cost = <span style={{ color: "rgba(240,88,112,0.9)" }}>$338,800</span> vs AXON: <span className="text-signal">$2.54</span>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Botões — aparecem após pausa de 3s */}
+          {done && showButtons && !approved && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
               className="mt-4 flex gap-2"
             >
-              <button
+              <motion.button
                 onClick={approve}
+                animate={{ boxShadow: ["0 0 0px rgba(200,240,96,0)", "0 0 20px rgba(200,240,96,0.4)", "0 0 0px rgba(200,240,96,0)"] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
                 className="flex-1 rounded-lg bg-signal px-5 py-3 font-display text-sm font-bold text-primary-foreground shadow-glow transition-transform hover:-translate-y-0.5"
               >
                 ✓ Approve & Send
-              </button>
+              </motion.button>
               <button
                 onClick={() => setEditing((e) => !e)}
                 className="rounded-lg border border-border bg-panel/60 px-5 py-3 font-display text-sm text-foreground/80 transition-colors hover:border-foreground/40 hover:text-foreground"

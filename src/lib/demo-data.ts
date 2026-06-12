@@ -1,5 +1,4 @@
-// Generate deterministic-yet-varied demo data from a company name.
-// Same name => same numbers. Different name => different story.
+﻿import type { ScoutResult } from "./scout";
 
 function hash(str: string): number {
   let h = 2166136261;
@@ -41,7 +40,6 @@ export interface DemoData {
   meetingsBookedPerWeek: number;
   message: string;
   competitorMoves: string[];
-  // Intelligence Layer
   intel: {
     category: string;
     positioning: string;
@@ -121,29 +119,22 @@ export function generateDemoData(rawCompany: string): DemoData {
 
   const mrrTrend = trend(s, mrr, 24, 0.05);
   const pipelineTrend = trend(s >> 2, 100 + (s % 80), 24, 0.18);
-  const cashTrend = trend(s >> 4, runwayMonths, 24, 0.04).map((v) =>
-    Math.max(4, v),
-  );
+  const cashTrend = trend(s >> 4, runwayMonths, 24, 0.04).map((v) => Math.max(4, v));
 
   const reasoning = [
     `${fundingRound} ${fundingAmount} closed ${fundingDays}d ago`,
-    `Hiring ${hiringRole} → revenue gap signal`,
+    `Hiring ${hiringRole} - revenue gap signal`,
     `CEO mentioned pipeline ${1 + (s % 3) + 1}x in 14d`,
     `Burn multiple elevated (${(1.4 + (s % 6) / 10).toFixed(1)}x)`,
     `Acquisition velocity below ICP benchmark`,
   ];
-  const conclusion = "High acquisition readiness · Deploy intervention within 48h";
 
+  const conclusion = "High acquisition readiness - Deploy intervention within 48h";
   const competitorMoves = [pick(competitorList, s), pick(competitorList, s >> 6)];
-
   const annualSaving = 110000 + (s % 60) * 1000;
   const meetingsBookedPerWeek = 2 + (s % 3);
 
-  const message = `Hey ${ceoFirst}, saw the ${fundingRound} ${fundingDays} days ago — congrats.
-
-With ${hiringRole} ramping and "${ceoQuote}" on your mind, the next 90 days are pipeline-defining.
-
-I built something specific for this moment — would you be open to a 22-min conversation this week?`;
+  const message = `Hey ${ceoFirst}, saw the ${fundingRound} ${fundingDays} days ago - congrats.\n\nWith ${hiringRole} ramping and "${ceoQuote}" on your mind, the next 90 days are pipeline-defining.\n\nI built something specific for this moment - would you be open to a 22-min conversation this week?`;
 
   return {
     company,
@@ -173,11 +164,11 @@ I built something specific for this moment — would you be open to a 22-min con
     message,
     competitorMoves,
     intel: {
-      category: `${industry} · Revenue Infrastructure`,
+      category: `${industry} - Revenue Infrastructure`,
       positioning: `Autonomous GTM operating system for ${industry} scale-ups`,
       pricingTier: pick(["Mid-market", "Enterprise", "Growth"], s >> 11),
-      pricingNote: `$${20 + (s % 60)}k–$${120 + (s % 80)}k ACV band`,
-      icpDescriptor: `Post-${fundingRound.toLowerCase()} ${industry} teams, 20–250 FTE, hiring GTM`,
+      pricingNote: `$${20 + (s % 60)}k-$${120 + (s % 80)}k ACV band`,
+      icpDescriptor: `Post-${fundingRound.toLowerCase()} ${industry} teams, 20-250 FTE, hiring GTM`,
       competitors: [
         pick(["Apollo.io", "Outreach", "Salesloft", "Clay"], s),
         pick(["Gong", "Common Room", "UserGems", "Pocus"], s >> 2),
@@ -186,8 +177,77 @@ I built something specific for this moment — would you be open to a 22-min con
       differentiators: [
         "Autonomous infrastructure orchestration vs single-system point solutions",
         "Reasoning trace exposed to operator",
-        "Closed-loop: signal → message → revenue attribution",
+        "Closed-loop: signal - message - revenue attribution",
       ],
+    },
+  };
+}
+
+export function generateDemoDataFromScout(scout: ScoutResult): DemoData {
+  const base = generateDemoData(scout.profile.name || scout.domain);
+  const multiplier = parseInt(scout.metrics?.multiplier ?? "4");
+
+  const signalsLower = scout.profile.signals.toLowerCase();
+  let hiringRole = base.hiringRole;
+  if (signalsLower.includes("head of sales")) hiringRole = "Head of Sales";
+  else if (signalsLower.includes("vp of sales")) hiringRole = "VP of Sales";
+  else if (signalsLower.includes("head of gtm")) hiringRole = "Head of GTM";
+  else if (signalsLower.includes("director of revenue")) hiringRole = "Director of Revenue";
+  else if (signalsLower.includes("cro") || signalsLower.includes("chief revenue")) hiringRole = "Chief Revenue Officer";
+  else if (signalsLower.includes("account executive")) hiringRole = "Account Executive";
+  else if (signalsLower.includes("sdr")) hiringRole = "SDR Team";
+  else if (scout.profile.signals.length > 10) {
+    hiringRole = scout.profile.signals.split("--")[0].trim().slice(0, 40);
+  }
+
+  let fundingRound = base.fundingRound;
+  let fundingAmount = base.fundingAmount;
+  let fundingDays = base.fundingDays;
+  const fundMatch = signalsLower.match(/(seed|series [a-d])[^,."]*/);
+  if (fundMatch) fundingRound = fundMatch[0].replace(/\b\w/g, (c) => c.toUpperCase());
+  const amountMatch = scout.profile.signals.match(/\$[\d.]+[MmKk]/);
+  if (amountMatch) fundingAmount = amountMatch[0];
+  const daysMatch = scout.profile.signals.match(/(\d+)\s*days?\s*ago/i);
+  if (daysMatch) fundingDays = parseInt(daysMatch[1]);
+
+  const reasoning = [
+    scout.profile.signals.slice(0, 60),
+    `${scout.profile.pain.slice(0, 55)} - infrastructure gap`,
+    `CEO angle: ${scout.profile.angle.slice(0, 50)}`,
+    `Burn multiple elevated - acquisition velocity below ICP benchmark`,
+    `Acquisition velocity below ICP benchmark`,
+  ];
+
+  const ceoQuote = scout.profile.angle.length > 10
+    ? scout.profile.angle.slice(0, 50).toLowerCase()
+    : base.ceoQuote;
+
+  const mrr = base.mrr + (multiplier - 4) * 5000;
+  const mrrTrend = trend(Math.abs(scout.score_num * 977), mrr, 24, 0.05);
+  const annualSaving = multiplier * 800 * 12 * 2.5;
+
+  return {
+    ...base,
+    company: scout.profile.name || scout.domain,
+    hiringRole,
+    fundingRound,
+    fundingAmount,
+    fundingDays,
+    ceoQuote,
+    icpScore: scout.score_num,
+    reasoning,
+    message: scout.message,
+    mrr,
+    mrrTrend,
+    annualSaving,
+    industry: scout.profile.icp.includes("SaaS") ? "SaaS"
+      : scout.profile.icp.includes("Dev") ? "DevTools"
+      : scout.profile.icp.includes("Fin") ? "FinTech"
+      : base.industry,
+    intel: {
+      ...base.intel,
+      positioning: scout.profile.angle,
+      icpDescriptor: scout.profile.icp,
     },
   };
 }

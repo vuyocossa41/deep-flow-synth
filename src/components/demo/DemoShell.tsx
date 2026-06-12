@@ -1,12 +1,12 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useScout } from "@/hooks/useScout";
-import { generateDemoData } from "@/lib/demo-data";
+import { generateDemoData, generateDemoDataFromScout } from "@/lib/demo-data";
+import { runScout, type ScoutResult } from "@/lib/scout";
 import { ActivationOverlay } from "./ActivationOverlay";
 import { AgentRail } from "./AgentRail";
-import { PhaseHeader } from "./PhaseHeader";
 import { ExecutiveBriefing } from "./ExecutiveBriefing";
 import { MouseLight } from "./MouseLight";
+import { QualificationGate, type GateData } from "./QualificationGate";
 import { SignalFeed } from "./SignalFeed";
 import { SystemActivityLayer } from "./SystemActivityLayer";
 import { ChaosScreen } from "./screens/ChaosScreen";
@@ -14,83 +14,108 @@ import { DecisionScreen } from "./screens/DecisionScreen";
 import { FinanceScreen } from "./screens/FinanceScreen";
 import { IntelligenceScreen } from "./screens/IntelligenceScreen";
 import { NumbersScreen } from "./screens/NumbersScreen";
+import { OverviewScreen } from "./screens/OverviewScreen";
 import { ScoutScreen } from "./screens/ScoutScreen";
 import { WriterScreen } from "./screens/WriterScreen";
 
 const labels = [
-  "CURRENT REALITY",
-  "CORE · INTELLIGENCE LAYER",
-  "ACQUISITION · SIGNAL INFRASTRUCTURE",
-  "GTM · INTERVENTION ORCHESTRATOR",
-  "REVENUE OPTIMIZER",
-  "STRATEGY ENGINE",
-  "PAYOFF",
+  "REVENUE INFRASTRUCTURE · DIAGNOSIS",
+  "INFRASTRUCTURE · OVERVIEW",
+  "SIGNAL INTELLIGENCE · ANALYSIS",
+  "SIGNAL SCOUT · LIVE DETECTION",
+  "CAMPAIGN ORCHESTRATION · AUTONOMOUS",
+  "REVENUE OPTIMIZER · ACTIVE",
+  "STRATEGY ENGINE · FOUNDER MODE",
+  "INFRASTRUCTURE · DEPLOYED",
 ];
 
-// agent activation per screen — drives the agent rail + ambient state
+const SCREEN_SUBTITLES = [
+  null,
+  "See the 4 infrastructure layers",
+  "See what AXON found about your company",
+  "Live signals being processed now",
+  "AI drafting outreach from real signals",
+  "Revenue infrastructure modelled",
+  "Decisions ranked by impact · ready to act",
+  "Your infrastructure is ready to deploy",
+];
+
 const ACTIVE_AGENTS: Record<number, string[]> = {
   1: [],
-  2: ["signal", "icp", "market", "strategy"],
-  3: ["signal", "icp"],
-  4: ["campaign", "signal"],
-  5: ["revenue", "market"],
-  6: ["strategy", "revenue", "campaign"],
-  7: ["strategy"],
+  2: [],
+  3: ["signal", "icp", "market", "strategy"],
+  4: ["signal", "icp"],
+  5: ["campaign", "signal"],
+  6: ["revenue", "market"],
+  7: ["strategy", "revenue", "campaign"],
+  8: ["strategy"],
 };
 
-// Live "what each agent is doing right now" per screen
 const AGENT_TASKS: Record<number, Record<string, string>> = {
-  2: {
-    signal: "indexing public footprint",
-    icp: "mapping ICP signature",
+  3: {
+    signal: "indexing public signal footprint",
+    icp: "mapping ICP acquisition signature",
     market: "scanning category topology",
     strategy: "compiling intelligence layer",
   },
-  3: {
-    signal: "querying funding news · 7d",
-    icp: "scoring fit · 847 accounts",
-  },
   4: {
-    campaign: "drafting opener variants",
-    signal: "checking trigger freshness",
+    signal: "querying funding signals · 7d",
+    icp: "scoring acquisition fit · 847 accounts",
   },
   5: {
-    revenue: "modeling MRR cohorts",
-    market: "benchmarking ACV band",
+    campaign: "drafting signal-based openers",
+    signal: "checking trigger freshness",
   },
   6: {
-    strategy: "ranking next-best moves",
-    revenue: "simulating CAC payback",
-    campaign: "sequencing send waves",
+    revenue: "modelling MRR infrastructure",
+    market: "benchmarking ACV signal band",
   },
   7: {
-    strategy: "logging payoff to memory",
+    strategy: "ranking next-best revenue moves",
+    revenue: "simulating CAC infrastructure payback",
+    campaign: "sequencing autonomous send waves",
+  },
+  8: {
+    strategy: "logging infrastructure payoff to memory",
   },
 };
 
-const TOTAL = 7;
+const TOTAL = 8;
+
+type DemoPhase = "chaos" | "gate" | "demo";
 
 export function DemoShell() {
+  const [phase, setPhase] = useState<DemoPhase>("chaos");
   const [screen, setScreen] = useState(1);
   const [company, setCompany] = useState("");
+  const [gateData, setGateData] = useState<GateData | null>(null);
   const [activating, setActivating] = useState(false);
-  const { scout, result, loading, error, reset } = useScout();
-  const data = useMemo(() => generateDemoData(company || "Acme"), [company]);
+  const [scoutData, setScoutData] = useState<ScoutResult | null>(null);
+  const [isLoadingScout, setIsLoadingScout] = useState(false);
+
+  const data = useMemo(() => {
+    if (scoutData) return generateDemoDataFromScout(scoutData);
+    return generateDemoData(company || "Acme");
+  }, [company, scoutData]);
 
   const go = useCallback((n: number) => {
     setScreen(Math.max(1, Math.min(TOTAL, n)));
   }, []);
 
   const restart = useCallback(() => {
-    reset();
     setCompany("");
-    setActivating(false);
+    setPhase("chaos");
     setScreen(1);
-  }, [reset]);
+    setGateData(null);
+    setActivating(false);
+    setScoutData(null);
+    setIsLoadingScout(false);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") restart();
+      if (phase !== "demo") return;
       if ((e.key === "ArrowRight" || e.key === " ") && screen > 1 && screen < TOTAL) {
         e.preventDefault();
         go(screen + 1);
@@ -102,56 +127,61 @@ export function DemoShell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [screen, go, restart]);
+  }, [screen, go, restart, phase]);
 
-  const handleActivate = useCallback(
-    (c: string) => {
-      setCompany(c);
-      setActivating(true);
-      void scout(c);
-    },
-    [scout],
-  );
+  const handleActivate = useCallback((c: string) => {
+    setCompany(c);
+    setPhase("gate");
+  }, []);
+
+  const handleQualified = useCallback((gd: GateData) => {
+    setGateData(gd);
+    setActivating(true);
+    setIsLoadingScout(true);
+    setScoutData(null);
+    runScout(company)
+      .then((res) => setScoutData(res))
+      .catch(() => setScoutData(null))
+      .finally(() => setIsLoadingScout(false));
+  }, [company]);
+
+  const handleWaitlist = useCallback(() => {
+    restart();
+  }, [restart]);
 
   const finishActivation = useCallback(() => {
     setActivating(false);
+    setPhase("demo");
     setScreen(2);
   }, []);
 
   const screens = [
     <ChaosScreen key="1" onActivate={handleActivate} />,
+    <OverviewScreen key="2" company={company} scoutData={scoutData} onContinue={() => go(3)} />,
     <IntelligenceScreen
-      key="2"
+      key="3"
       company={company}
-      isLoading={loading}
-      scoutData={result}
-      error={error}
-      onRescan={() => company && void scout(company)}
-      onContinue={() => go(3)}
+      isLoading={isLoadingScout}
+      scoutData={scoutData}
+      error={null}
+      onContinue={() => go(4)}
     />,
-    <ScoutScreen key="3" data={data} onComplete={() => go(4)} />,
-    <WriterScreen key="4" data={data} onComplete={() => go(5)} />,
-    <FinanceScreen key="5" data={data} onComplete={() => go(6)} />,
-    <DecisionScreen key="6" data={data} onComplete={() => go(7)} />,
-    <NumbersScreen key="7" data={data} onRestart={restart} />,
+    <ScoutScreen key="4" data={data} onComplete={() => go(5)} />,
+    <WriterScreen key="5" data={data} onComplete={() => go(6)} />,
+    <FinanceScreen key="6" data={data} scoutData={scoutData} onComplete={() => go(7)} />,
+    <DecisionScreen key="7" data={data} scoutData={scoutData} onComplete={() => go(8)} />,
+    <NumbersScreen key="8" data={data} scoutData={scoutData} onRestart={restart} />,
   ];
 
-  const showOps = screen > 1 && screen < TOTAL && !activating;
-  const showAmbient = screen > 1; // hide cosmic noise behind chaos screen
-  const phase = activating
-    ? "activation"
-    : screen === 1
-      ? "chaos"
-      : "intelligence";
+  const showOps = phase === "demo" && screen > 2 && screen < TOTAL;
+  const showAmbient = phase === "demo";
+  const showNav = phase === "demo" && screen > 1 && screen < TOTAL;
 
   return (
     <div className="relative min-h-svh">
-      <PhaseHeader phase={phase} onRestart={restart} />
-      {/* AMBIENT INFRASTRUCTURE LAYERS — kept off during chaos so the red tint stays dominant */}
       {showAmbient && <SystemActivityLayer />}
       <MouseLight />
 
-      {/* Persistent intelligence chrome (only during the flow) */}
       {showOps && (
         <AgentRail
           activeIds={ACTIVE_AGENTS[screen] ?? []}
@@ -159,81 +189,102 @@ export function DemoShell() {
         />
       )}
       {showOps && <SignalFeed />}
-      {showOps && screen > 2 && <ExecutiveBriefing data={data} />}
+      {showOps && screen > 3 && <ExecutiveBriefing data={data} />}
 
-      {/* Step label + progress */}
-      <div className="fixed inset-x-0 top-10 z-40 flex items-center justify-between px-5 py-2">
-        <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
-          {labels[screen - 1]}
-          {company && screen > 1 && (
-            <span className="ml-2 text-foreground/70">· {company}</span>
-          )}
-        </div>
-        <div className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          {String(screen).padStart(2, "0")} / {String(TOTAL).padStart(2, "0")}
-        </div>
-      </div>
+      <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4">
+        <button onClick={restart} className="flex items-center gap-2 font-display text-[15px] font-bold tracking-tight">
+          <span className="relative inline-flex h-2 w-2">
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${phase === "chaos" ? "bg-danger/70" : "bg-signal/70"}`} />
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${phase === "chaos" ? "bg-danger" : "bg-signal"}`} />
+          </span>
+          AXON<span className={phase === "chaos" ? "text-danger" : "text-signal"}>·OS</span>
+        </button>
 
-      <div className="fixed inset-x-0 top-10 z-50 h-[2px] bg-border/40">
-        <motion.div
-          className="h-full"
-          style={{
-            background:
-              screen === 1
+        {phase === "demo" && (
+          <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
+            {labels[screen - 1]}
+            {company && <span className="ml-2 text-foreground/70">· {company}</span>}
+          </div>
+        )}
+
+        {phase === "gate" && (
+          <div className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground sm:block">
+            AXON · INTELLIGENCE GATE · {company.toUpperCase()}
+          </div>
+        )}
+
+        {phase === "demo" && (
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            {String(screen).padStart(2, "0")} / {String(TOTAL).padStart(2, "0")}
+          </div>
+        )}
+      </header>
+
+      {phase === "demo" && (
+        <div className="fixed inset-x-0 top-0 z-50 h-[2px] bg-border/40">
+          <motion.div
+            className="h-full"
+            style={{
+              background: screen === 1
                 ? "linear-gradient(90deg, oklch(0.7 0.22 25), oklch(0.82 0.18 75))"
                 : "linear-gradient(90deg, oklch(0.85 0.22 152), oklch(0.72 0.16 250))",
-          }}
-          animate={{ width: `${((screen - 1) / (TOTAL - 1)) * 100}%` }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        />
-      </div>
+            }}
+            animate={{ width: `${((screen - 1) / (TOTAL - 1)) * 100}%` }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </div>
+      )}
 
-      {/* Screens */}
       <AnimatePresence mode="wait">
-        <motion.div
-          key={screen}
-          initial={{ opacity: 0, scale: 0.985, filter: "blur(8px)" }}
-          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-          exit={{ opacity: 0, scale: 1.015, filter: "blur(8px)" }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10"
-        >
-          {screens[screen - 1]}
-        </motion.div>
+        {phase === "chaos" && (
+          <motion.div key="chaos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.015, filter: "blur(8px)" }} transition={{ duration: 0.5 }} className="relative z-10">
+            <ChaosScreen onActivate={handleActivate} />
+          </motion.div>
+        )}
+
+        {phase === "gate" && !activating && (
+          <motion.div key="gate" initial={{ opacity: 0, scale: 0.985, filter: "blur(8px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, scale: 1.015, filter: "blur(8px)" }} transition={{ duration: 0.5 }} className="relative z-10">
+            <QualificationGate domain={company} onQualified={handleQualified} onWaitlist={handleWaitlist} />
+          </motion.div>
+        )}
+
+        {phase === "demo" && (
+          <motion.div key={screen} initial={{ opacity: 0, scale: 0.985, filter: "blur(8px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, scale: 1.015, filter: "blur(8px)" }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }} className="relative z-10">
+            {screens[screen - 1]}
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      {/* Activation transition overlay (between chaos and intelligence) */}
       <AnimatePresence>
         {activating && (
           <ActivationOverlay company={company} onComplete={finishActivation} />
         )}
       </AnimatePresence>
 
-      {/* Hint */}
-      {screen > 1 && screen < TOTAL && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
-          ← → to navigate · ESC to restart
-        </div>
+      {showNav && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between border-t border-border/30 bg-background/80 px-6 py-3 backdrop-blur-md">
+          <button onClick={() => go(screen - 1)} className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground">
+            ← {labels[screen - 2] ?? "Back"}
+          </button>
+
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: TOTAL }, (_, idx) => idx + 1).map((n) => (
+              <button key={n} onClick={() => go(n)} className={`h-1.5 rounded-full transition-all ${n === screen ? "w-6 bg-signal" : n < screen ? "w-1.5 bg-foreground/40 hover:bg-foreground/60" : "w-1.5 bg-border"}`} aria-label={`Step ${n}`} />
+            ))}
+          </div>
+
+          <button onClick={() => go(screen + 1)} className="flex items-center gap-2 rounded-lg border border-signal/40 bg-signal/10 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-signal transition-all hover:bg-signal/20 hover:border-signal/70">
+            {SCREEN_SUBTITLES[screen] ?? labels[screen] ?? "Next"}
+            <span className="text-[13px]">→</span>
+          </button>
+        </motion.div>
       )}
 
-      {/* Step dots */}
-      <div className="fixed bottom-4 left-1/2 z-40 hidden -translate-x-1/2 items-center gap-1.5 sm:flex">
-        {Array.from({ length: TOTAL }, (_, idx) => idx + 1).map((n) => (
-          <button
-            key={n}
-            onClick={() => company && go(n)}
-            disabled={!company && n > 1}
-            className={`h-1.5 rounded-full transition-all ${
-              n === screen
-                ? "w-6 bg-signal"
-                : n < screen
-                  ? "w-1.5 bg-foreground/40 hover:bg-foreground/60"
-                  : "w-1.5 bg-border"
-            }`}
-            aria-label={`Step ${n}`}
-          />
-        ))}
-      </div>
+      {phase === "chaos" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3, duration: 1 }} className="pointer-events-none fixed inset-x-0 bottom-6 z-40 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/40">
+          Enter your domain to deploy intelligence
+        </motion.div>
+      )}
     </div>
   );
 }

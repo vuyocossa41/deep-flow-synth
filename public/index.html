@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXON · FounderOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0a0e0f;--bg2:#0f1415;--card:#141a1c;--elevated:#1a2224;
+  --text:#e8f0f2;--text2:#8fa8ad;--muted:#4a6268;
+  --green:#00d4a0;--amber:#f5a623;--blue:#4a9eff;--red:#ff4a4a;--purple:#9b6dff;
+  --border:rgba(0,212,160,0.12);--border2:rgba(0,212,160,0.3);
+  --font:'JetBrains Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden;}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;}
+.slide.active{display:flex;}
+
+/* HEADER */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--bg);z-index:10;flex-shrink:0;}
+.hdr-logo{font-size:12px;font-weight:600;letter-spacing:.15em;color:var(--green);}
+.hdr-bread{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+.hdr-tabs{display:flex;gap:6px;font-size:10px;}
+.hdr-tab{padding:3px 8px;border:1px solid var(--border);color:var(--muted);cursor:pointer;letter-spacing:.08em;}
+.hdr-tab.active{border-color:var(--green);color:var(--green);}
+.hdr-count{font-size:11px;color:var(--muted);}
+
+/* PROGRESS BAR */
+.progress-bar{height:2px;background:var(--border);flex-shrink:0;}
+.progress-fill{height:100%;background:var(--amber);transition:width .4s ease;}
+
+/* MAIN LAYOUT */
+.main{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:180px;flex-shrink:0;border-right:1px solid var(--border);padding:16px 12px;background:var(--bg2);}
+.content{flex:1;overflow-y:auto;padding:24px 28px;}
+.feed{width:240px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg2);}
+
+/* FOOTER NAV */
+.nav-footer{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg);}
+.nav-hint{font-size:10px;color:var(--muted);letter-spacing:.1em;}
+.dots{display:flex;gap:6px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background .3s;}
+.dot.active{background:var(--green);}
+
+/* AGENTS */
+.agents-title{font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;}
+.agent{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer;}
+.agent-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.agent-dot.green{background:var(--green);}
+.agent-dot.blue{background:var(--blue);}
+.agent-dot.purple{background:var(--purple);}
+.agent-dot.active{animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.8);}}
+.agent-info{}
+.agent-name{font-size:10px;font-weight:600;color:var(--text);letter-spacing:.08em;}
+.agent-status{font-size:9px;color:var(--muted);margin-top:2px;}
+
+/* SIGNAL FEED */
+.feed-header{padding:12px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center;}
+.feed-counter{color:var(--green);font-weight:600;}
+.feed-items{padding:8px;overflow:hidden;display:flex;flex-direction:column;gap:4px;max-height:calc(100% - 44px);}
+.feed-item{font-size:10px;padding:6px 8px;border-left:2px solid;animation:slideUp .4s ease-out;}
+.feed-item.pos{border-color:var(--green);color:var(--green);background:rgba(0,212,160,.04);}
+.feed-item.neg{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,.04);}
+.feed-item.act{border-color:var(--blue);color:var(--blue);background:rgba(74,158,255,.04);}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* SLIDE 01 */
+.s01{background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;}
+.s01-diag{font-size:10px;color:var(--muted);letter-spacing:.2em;margin-bottom:32px;}
+.s01-big{font-size:80px;font-weight:700;color:var(--green);line-height:1;}
+.s01-sub{font-size:14px;color:var(--text2);margin-top:8px;margin-bottom:32px;}
+.s01-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;width:100%;max-width:800px;}
+.s01-stat{border:1px solid var(--border);padding:16px;background:var(--card);}
+.s01-stat-val{font-size:24px;font-weight:700;color:var(--amber);}
+.s01-stat-label{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4;}
+.s01-text{font-size:13px;color:var(--text2);margin-bottom:24px;opacity:0;transition:opacity .8s;}
+.s01-text.show{opacity:1;}
+.s01-cta{opacity:0;transition:opacity .8s;border:1px solid var(--green);color:var(--green);padding:12px 28px;font-size:12px;font-weight:600;letter-spacing:.15em;cursor:pointer;background:transparent;font-family:var(--font);}
+.s01-cta.show{opacity:1;}
+.s01-cta:hover{background:rgba(0,212,160,.08);}
+
+/* SLIDE 02 */
+.s02-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;height:100%;}
+.s02-col{border:1px solid var(--border);padding:18px;background:var(--card);overflow-y:auto;}
+.s02-col.red{border-color:rgba(255,74,74,.3);}
+.s02-col.grn{border-color:rgba(0,212,160,.3);}
+.s02-col.blu{border-color:rgba(74,158,255,.3);}
+.col-title{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.col-title.red{color:var(--red);}
+.col-title.grn{color:var(--green);}
+.col-title.blu{color:var(--blue);}
+.pain-item{margin-bottom:14px;padding-left:12px;border-left:2px solid rgba(255,74,74,.3);}
+.pain-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.pain-dot.red{background:var(--red);}
+.pain-dot.amb{background:var(--amber);}
+.pain-label{font-size:11px;color:var(--text);font-weight:500;}
+.pain-sub{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5;}
+.after-item{display:flex;gap:8px;margin-bottom:10px;font-size:11px;color:var(--text);}
+.after-arr{color:var(--green);flex-shrink:0;}
+.diff-metric{margin-bottom:14px;}
+.diff-val{font-size:22px;font-weight:700;color:var(--blue);}
+.diff-label{font-size:10px;color:var(--muted);margin-top:2px;}
+.diff-sub{font-size:10px;color:var(--muted);opacity:.7;}
+.s02-footer{margin-top:16px;padding:10px;border:1px solid var(--border);font-size:11px;color:var(--text2);text-align:center;background:var(--bg2);}
+
+/* SLIDE 03 */
+.s03-layout{display:grid;grid-template-columns:60% 40%;gap:16px;height:100%;}
+.terminal{background:#050a0b;border:1px solid var(--border2);padding:18px;font-size:11px;overflow-y:auto;position:relative;}
+.term-header{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.term-dot{width:10px;height:10px;border-radius:50%;}
+.term-title{font-size:10px;color:var(--muted);letter-spacing:.1em;}
+.term-line{margin-bottom:4px;color:var(--text2);line-height:1.6;}
+.term-line.sig{color:var(--green);}
+.term-line.comp{color:var(--amber);}
+.term-line.sum{color:var(--text);margin-top:10px;}
+.term-amber{margin-top:16px;padding:12px;border-left:3px solid var(--amber);background:rgba(245,166,35,.06);color:var(--amber);font-size:11px;line-height:1.6;opacity:0;transition:opacity .8s;}
+.term-amber.show{opacity:1;}
+.reasoning{border:1px solid var(--border);padding:16px;background:var(--card);overflow-y:auto;}
+.r-title{font-size:10px;color:var(--muted);letter-spacing:.15em;margin-bottom:12px;}
+.r-item{font-size:10px;color:var(--text2);margin-bottom:6px;padding-left:12px;position:relative;}
+.r-item::before{content:'›';position:absolute;left:0;color:var(--green);}
+.r-section{margin-top:14px;padding-top:10px;border-top:1px solid var(--border);}
+.r-label{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:6px;}
+.r-val{font-size:11px;color:var(--text);}
+.r-highlight{margin-top:14px;padding:10px;background:rgba(0,212,160,.06);border:1px solid var(--border2);}
+.r-hl-text{font-size:11px;color:var(--green);font-weight:600;}
+.decay-bar{height:4px;background:linear-gradient(to right,var(--green),var(--amber),var(--red));margin-top:8px;border-radius:2px;}
+.conf-label{font-size:10px;color:var(--muted);margin-top:6px;}
+
+/* SLIDE 04 */
+.s04-header{text-align:center;margin-bottom:20px;}
+.s04-scan{font-size:10px;color:var(--muted);letter-spacing:.15em;margin-bottom:8px;}
+.s04-big{font-size:72px;font-weight:700;color:var(--green);line-height:1;}
+.s04-biglab{font-size:13px;color:var(--text2);margin-bottom:16px;}
+.s04-criteria{display:flex;flex-direction:column;gap:4px;margin-bottom:20px;text-align:left;display:inline-block;}
+.s04-crit{font-size:11px;color:var(--text2);}
+.s04-crit::before{content:'✓ ';color:var(--green);}
+.tier-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+.tier-bar{background:var(--card);border:1px solid var(--border);padding:12px;}
+.tier-label{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:6px;}
+.tier-track{height:6px;background:var(--bg);border-radius:3px;margin-bottom:6px;}
+.tier-fill{height:100%;border-radius:3px;}
+.tier-fill.ent{background:var(--green);width:80%;}
+.tier-fill.sca{background:var(--amber);width:60%;}
+.tier-fill.gro{background:var(--blue);width:40%;}
+.tier-info{font-size:10px;color:var(--text2);}
+.acc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.acc-card{border:1px solid var(--border);padding:14px;background:var(--card);opacity:0;transform:translateY(12px);transition:all .5s ease;}
+.acc-card.show{opacity:1;transform:translateY(0);}
+.acc-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;display:flex;justify-content:space-between;}
+.acc-icp{font-size:10px;color:var(--green);}
+.acc-row{font-size:10px;color:var(--text2);margin-bottom:3px;}
+.acc-urg{margin-top:8px;font-size:10px;font-weight:600;}
+.urg-crit{color:var(--red);}
+.urg-high{color:var(--amber);}
+.urg-med{color:var(--blue);}
+.s04-footer{text-align:center;margin-top:16px;padding:14px;background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);opacity:0;transition:opacity .8s;}
+.s04-footer.show{opacity:1;}
+.s04-footer-text{font-size:14px;color:var(--amber);font-weight:500;}
+
+/* SLIDE 05 */
+.metrics-bar{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;margin-bottom:20px;background:var(--border);}
+.metric{background:var(--card);padding:12px 10px;}
+.metric-label{font-size:9px;color:var(--muted);letter-spacing:.1em;margin-bottom:4px;}
+.metric-val{font-size:16px;font-weight:700;color:var(--green);}
+.metric-sub{font-size:9px;color:var(--muted);margin-top:3px;}
+.priority-cards{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.pri-card{border:1px solid var(--border);padding:14px 18px;background:var(--card);display:flex;align-items:center;justify-content:space-between;}
+.pri-card.urgent{border-color:rgba(255,74,74,.4);background:rgba(255,74,74,.04);}
+.pri-card.today{border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.04);}
+.pri-card.week{border-color:var(--border);}
+.pri-left{}
+.pri-badge{font-size:9px;font-weight:600;letter-spacing:.12em;margin-bottom:6px;}
+.pri-badge.urgent{color:var(--red);}
+.pri-badge.today{color:var(--amber);}
+.pri-badge.week{color:var(--blue);}
+.pri-title{font-size:13px;font-weight:500;color:var(--text);}
+.pri-action{font-size:11px;color:var(--green);white-space:nowrap;border:1px solid var(--border2);padding:6px 12px;cursor:pointer;}
+.pri-action:hover{background:rgba(0,212,160,.08);}
+.s05-footer{padding:14px;border:1px solid var(--border);background:var(--card);text-align:center;}
+.s05-footer-text{font-size:13px;color:var(--text2);}
+.s05-footer-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+
+/* SLIDE 06 */
+.s06{background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:40px;text-align:center;}
+.s06-block{max-width:640px;width:100%;}
+.s06-now{font-size:12px;color:var(--muted);letter-spacing:.15em;margin-bottom:24px;}
+.s06-line{margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline;padding:10px 16px;border:1px solid rgba(255,74,74,.2);background:rgba(255,74,74,.04);}
+.s06-what{font-size:12px;color:var(--text2);}
+.s06-cost{font-size:16px;font-weight:700;color:var(--red);}
+.s06-total{font-size:36px;font-weight:700;color:var(--red);margin:20px 0 4px;}
+.s06-total-lab{font-size:12px;color:var(--muted);margin-bottom:32px;}
+.s06-or{opacity:0;transition:opacity 1s;}
+.s06-or.show{opacity:1;}
+.s06-or-price{font-size:28px;font-weight:700;color:var(--amber);margin-bottom:8px;}
+.s06-or-roi{font-size:20px;font-weight:700;color:var(--green);margin-bottom:24px;}
+.s06-close{opacity:0;transition:opacity 1s;}
+.s06-close.show{opacity:1;}
+.s06-q{font-size:18px;font-weight:600;color:var(--text);margin-bottom:8px;}
+.s06-a{font-size:18px;font-weight:600;color:var(--amber);margin-bottom:32px;}
+.s06-cta{opacity:0;transition:opacity 1s;}
+.s06-cta.show{opacity:1;}
+.s06-btn{border:none;background:var(--green);color:#040404;padding:16px 36px;font-size:13px;font-weight:700;letter-spacing:.15em;cursor:pointer;font-family:var(--font);}
+.s06-btn:hover{opacity:.9;}
+
+/* SLIDE 07 */
+.s07{background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:40px;text-align:center;}
+.s07-tag{font-size:10px;color:var(--amber);letter-spacing:.2em;margin-bottom:16px;}
+.s07-title{font-size:32px;font-weight:700;color:var(--text);margin-bottom:12px;}
+.s07-sub{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.7;}
+.s07-urg{border:1px solid rgba(245,166,35,.4);background:rgba(245,166,35,.06);padding:12px 20px;font-size:12px;color:var(--amber);margin-bottom:24px;letter-spacing:.05em;}
+.s07-btn{display:inline-block;background:var(--green);color:#040404;padding:16px 40px;font-size:13px;font-weight:700;letter-spacing:.15em;cursor:pointer;text-decoration:none;margin-bottom:24px;font-family:var(--font);}
+.s07-btn:hover{opacity:.9;}
+.s07-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:600px;margin:0 auto 24px;}
+.s07-step{border:1px solid var(--border);padding:16px;background:var(--card);}
+.s07-step-n{font-size:10px;color:var(--muted);margin-bottom:6px;}
+.s07-step-t{font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.s07-step-d{font-size:10px;color:var(--muted);line-height:1.5;}
+.s07-footer{font-size:10px;color:var(--muted);letter-spacing:.08em;}
+
+/* FULLSCREEN SLIDES */
+.slide-full{flex:1;display:flex;flex-direction:column;}
+.slide-centered{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+</style>
+</head>
+<body>
+
+<!-- SLIDE 01 — MIRROR -->
+<div class="slide active" id="slide-1">
+  <div class="slide-full s01">
+    <div class="s01-diag">MARKET DIAGNOSIS · 2026</div>
+    <div class="s01-big" id="c-main">0</div>
+    <div class="s01-sub">% of founders with revenue as priority #1<br>have no system to execute it.</div>
+    <div class="s01-grid">
+      <div class="s01-stat"><div class="s01-stat-val">$<span id="c1">0</span></div><div class="s01-stat-label">cost per lead<br>with human SDR</div></div>
+      <div class="s01-stat"><div class="s01-stat-val"><span id="c2">0</span>%</div><div class="s01-stat-label">of your sales rep's time<br>actually selling</div></div>
+      <div class="s01-stat"><div class="s01-stat-val">$<span id="c3">0</span>k</div><div class="s01-stat-label">fully loaded cost<br>of 1 SDR/year</div></div>
+      <div class="s01-stat"><div class="s01-stat-val"><span id="c4">0</span> days</div><div class="s01-stat-label">opportunity window before<br>competitor acts</div></div>
+    </div>
+    <div class="s01-text" id="s01-text">The problem is not lack of SDR.<br>It is absence of a revenue operating system.</div>
+    <button class="s01-cta" id="s01-cta" onclick="goTo(2)">→ SEE THE SYSTEM</button>
+  </div>
+  <div class="nav-footer">
+    <span class="nav-hint">← → TO NAVIGATE · ESC TO RESTART</span>
+    <div class="dots" id="dots1"></div>
+  </div>
+</div>
+
+<!-- SLIDE 02 — COLLAPSE -->
+<div class="slide" id="slide-2">
+  <div class="hdr">
+    <div class="hdr-logo">AXON · FOUNDEROS</div>
+    <div class="hdr-bread">CORE · INTELLIGENCE LAYER · <span class="prospect-name"></span></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="hdr-tabs"><div class="hdr-tab active">CHAOS</div><div class="hdr-tab">ACTIVATION</div><div class="hdr-tab">INTELLIGENCE</div></div>
+      <div class="hdr-count">02 / 07</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:28%"></div></div>
+  <div class="main">
+    <div class="sidebar" id="sidebar-2"></div>
+    <div class="content">
+      <div class="s02-grid">
+        <div class="s02-col red">
+          <div class="col-title red">TODAY — THE COST</div>
+          <div class="pain-item"><span class="pain-dot red"></span><span class="pain-label">Agency invoice: <span class="agency-spend"></span>/mo</span><div class="pain-sub">Qualified signals delivered: <span class="signals-del"></span><br>Cost per signal: $4,800</div></div>
+          <div class="pain-item"><span class="pain-dot amb"></span><span class="pain-label">CAC increased <span class="cac-inc"></span> YoY</span><div class="pain-sub">GTM team has no systemic explanation</div></div>
+          <div class="pain-item"><span class="pain-dot red"></span><span class="pain-label">6 deals lost to competitor</span><div class="pain-sub">who acted on intent signal first<br>No early warning system in use</div></div>
+          <div class="pain-item"><span class="pain-dot amb"></span><span class="pain-label">Founder spent <span class="founder-hrs"></span>h this week</span><div class="pain-sub">on revenue ops<br>Qualified meetings generated: 0</div></div>
+        </div>
+        <div class="s02-col grn">
+          <div class="col-title grn">AFTER AXON</div>
+          <div class="after-item"><span class="after-arr">→</span>Autonomous acquisition 24/7</div>
+          <div class="after-item"><span class="after-arr">→</span>Pipeline stable at 90%+</div>
+          <div class="after-item"><span class="after-arr">→</span>Founder spends 2h/week reviewing results</div>
+          <div class="after-item"><span class="after-arr">→</span>System detects intent before competitor acts</div>
+          <div class="after-item"><span class="after-arr">→</span>Zero agency dependency</div>
+          <div class="after-item"><span class="after-arr">→</span>Churn risks flagged 30 days early</div>
+        </div>
+        <div class="s02-col blu">
+          <div class="col-title blu">THE DIFFERENCE</div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:14px;">ESTIMATED OPERATIONAL IMPACT</div>
+          <div class="diff-metric"><div class="diff-val">€115k</div><div class="diff-label">Annual cost eliminated</div><div class="diff-sub">↳ SDRs + agency + founder hours</div></div>
+          <div class="diff-metric"><div class="diff-val">94%</div><div class="diff-label">Pipeline stability</div><div class="diff-sub">↳ Based on comparable deployments</div></div>
+          <div class="diff-metric"><div class="diff-val">72%</div><div class="diff-label">Founder time reclaimed</div><div class="diff-sub">↳ Hours to product + strategy</div></div>
+        </div>
+      </div>
+      <div class="s02-footer"><span class="prospect-name"></span>: outbound autonomous. Pipeline predictable. Founder strategic.</div>
+    </div>
+    <div class="feed" id="feed-2"></div>
+  </div>
+  <div class="nav-footer"><span class="nav-hint">← → TO NAVIGATE · ESC TO RESTART</span><div class="dots" id="dots2"></div></div>
+</div>
+
+<!-- SLIDE 03 — ACTIVATION -->
+<div class="slide" id="slide-3">
+  <div class="hdr">
+    <div class="hdr-logo">AXON · FOUNDEROS</div>
+    <div class="hdr-bread">ACQUISITION · SIGNAL INFRASTRUCTURE · <span class="prospect-name"></span></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="hdr-tabs"><div class="hdr-tab">CHAOS</div><div class="hdr-tab active">ACTIVATION</div><div class="hdr-tab">INTELLIGENCE</div></div>
+      <div class="hdr-count">03 / 07</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:42%"></div></div>
+  <div class="main">
+    <div class="sidebar" id="sidebar-3"></div>
+    <div class="content">
+      <div class="s03-layout">
+        <div>
+          <div class="terminal" id="terminal">
+            <div class="term-header">
+              <div class="term-dot" style="background:#ff5f56"></div>
+              <div class="term-dot" style="background:#ffbd2e"></div>
+              <div class="term-dot" style="background:#27c93f"></div>
+              <div class="term-title">scout_agent — <span class="prospect-name"></span></div>
+            </div>
+            <div id="term-output"></div>
+            <div class="term-amber" id="term-amber">
+              ⚡ This signal would have taken 4 days and $400 with a human SDR.<br>
+              The system did it in 58 seconds for $0.004.
+            </div>
+          </div>
+        </div>
+        <div class="reasoning">
+          <div class="r-title">REASONING ENGINE</div>
+          <div class="r-item">Series A extension $6M closed 7d ago</div>
+          <div class="r-item">Hiring Director of Revenue → revenue gap signal</div>
+          <div class="r-item">CEO mentioned pipeline 3x in 14d</div>
+          <div class="r-item">Burn multiple elevated (1.8x)</div>
+          <div class="r-item">Acquisition velocity below ICP benchmark</div>
+          <div class="r-item">Competitor moved first on adjacent account</div>
+          <div class="r-section">
+            <div class="r-label">WHY NOW</div>
+            <div class="r-val">Raised capital + hiring pressure + competitor threat = 11-day urgency window before opportunity decays</div>
+          </div>
+          <div class="r-section">
+            <div class="r-label">SIGNAL CONFIDENCE</div>
+            <div class="r-val" style="color:var(--green);font-size:18px;font-weight:700;">94%</div>
+            <div class="decay-bar"></div>
+            <div class="conf-label">Confidence decay: -8%/day after day 11</div>
+          </div>
+          <div class="r-highlight">
+            <div class="r-hl-text">► HIGH ACQUISITION READINESS</div>
+            <div style="font-size:10px;color:var(--text2);margin-top:4px;">Deploy intervention within 48h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="feed" id="feed-3"></div>
+  </div>
+  <div class="nav-footer"><span class="nav-hint">← → TO NAVIGATE · ESC TO RESTART</span><div class="dots" id="dots3"></div></div>
+</div>
+
+<!-- SLIDE 04 — HOLY SHIT -->
+<div class="slide" id="slide-4">
+  <div class="hdr">
+    <div class="hdr-logo">AXON · FOUNDEROS</div>
+    <div class="hdr-bread">SIGNAL INTELLIGENCE LAYER · LIVE</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="hdr-tabs"><div class="hdr-tab">CHAOS</div><div class="hdr-tab active">ACTIVATION</div><div class="hdr-tab">INTELLIGENCE</div></div>
+      <div class="hdr-count">04 / 07</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:57%"></div></div>
+  <div class="main">
+    <div class="sidebar" id="sidebar-4"></div>
+    <div class="content">
+      <div class="s04-header">
+        <div class="s04-scan">MARKET SCAN COMPLETED · 12 SECONDS</div>
+        <div class="s04-big" id="c47">0</div>
+        <div class="s04-biglab">companies identified with all 5 signals active</div>
+        <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;">
+          <div class="s04-crit">Hiring spike +40% GTM in 30d</div>
+          <div class="s04-crit">Stack change detected</div>
+          <div class="s04-crit">Series A/B in last 90 days</div>
+          <div class="s04-crit">CEO 3+ posts on pipeline</div>
+          <div class="s04-crit">Competitor threat confirmed</div>
+        </div>
+      </div>
+      <div class="tier-bars">
+        <div class="tier-bar"><div class="tier-label">ENTERPRISE TIER · ICP 91+</div><div class="tier-track"><div class="tier-fill ent"></div></div><div class="tier-info">12 accounts · ready for intervention</div></div>
+        <div class="tier-bar"><div class="tier-label">SCALE TIER · ICP 82-90</div><div class="tier-track"><div class="tier-fill sca"></div></div><div class="tier-info">8 accounts · elevated priority</div></div>
+        <div class="tier-bar"><div class="tier-label">GROWTH TIER · ICP 70-81</div><div class="tier-track"><div class="tier-fill gro"></div></div><div class="tier-info">27 accounts · standard priority</div></div>
+      </div>
+      <div class="acc-cards">
+        <div class="acc-card" id="card1">
+          <div class="acc-name">ACME FINTECH <span class="acc-icp">ICP: 96/100</span></div>
+          <div class="acc-row">Series A $8M · 7d ago</div>
+          <div class="acc-row">Hiring: VP Sales + 3 AEs</div>
+          <div class="acc-row">CEO: "scaling revenue team"</div>
+          <div class="acc-row">Stack: Salesforce → HubSpot</div>
+          <div class="acc-urg urg-crit">🔴 CRITICAL · 8-day window</div>
+        </div>
+        <div class="acc-card" id="card2">
+          <div class="acc-name">DEVTOOLS INC <span class="acc-icp">ICP: 89/100</span></div>
+          <div class="acc-row">Bridge round · 14d ago</div>
+          <div class="acc-row">Hiring: Director Revenue Ops</div>
+          <div class="acc-row">Lost deal to competitor</div>
+          <div class="acc-row">Intent signals: 3 this week</div>
+          <div class="acc-urg urg-high">🟡 HIGH · 15-day window</div>
+        </div>
+        <div class="acc-card" id="card3">
+          <div class="acc-name">INFRA CO <span class="acc-icp">ICP: 84/100</span></div>
+          <div class="acc-row">Series B announced · 3d ago</div>
+          <div class="acc-row">4 GTM roles posted</div>
+          <div class="acc-row">Stack: Added Snowflake + dbt</div>
+          <div class="acc-row">CEO activity spike: +340%</div>
+          <div class="acc-urg urg-med">🟠 MEDIUM · 22-day window</div>
+        </div>
+      </div>
+      <div class="s04-footer" id="s04-footer">
+        <div class="s04-footer-text">A human SDR would find 1–2 of these in 4 days.<br>The system found 47 in 12 seconds.</div>
+      </div>
+    </div>
+    <div class="feed" id="feed-4"></div>
+  </div>
+  <div class="nav-footer"><span class="nav-hint">← → TO NAVIGATE · ESC TO RESTART</span><div class="dots" id="dots4"></div></div>
+</div>
+
+<!-- SLIDE 05 — IDENTITY -->
+<div class="slide" id="slide-5">
+  <div class="hdr">
+    <div class="hdr-logo">AXON · FOUNDEROS</div>
+    <div class="hdr-bread">STRATEGY ENGINE · <span class="prospect-name"></span></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="hdr-tabs"><div class="hdr-tab">CHAOS</div><div class="hdr-tab">ACTIVATION</div><div class="hdr-tab active">INTELLIGENCE</div></div>
+      <div class="hdr-count">05 / 07</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:71%"></div></div>
+  <div class="main">
+    <div class="sidebar" id="sidebar-5"></div>
+    <div class="content">
+      <div class="metrics-bar">
+        <div class="metric"><div class="metric-label">PIPELINE GEN.</div><div class="metric-val">$50,000</div><div class="metric-sub">+24% W/W</div></div>
+        <div class="metric"><div class="metric-label">CAC ↓</div><div class="metric-val">21%</div><div class="metric-sub">LAST 3MO</div></div>
+        <div class="metric"><div class="metric-label">MEETINGS</div><div class="metric-val">9/WK</div><div class="metric-sub">AUTO-BOOKED</div></div>
+        <div class="metric"><div class="metric-label">SIGNAL CONF.</div><div class="metric-val">91%</div><div class="metric-sub">RISING</div></div>
+        <div class="metric"><div class="metric-label">MKT MOMENTUM</div><div class="metric-val">84</div><div class="metric-sub">STRONG</div></div>
+        <div class="metric"><div class="metric-label">OPPORTUNITIES</div><div class="metric-val">7</div><div class="metric-sub">READY</div></div>
+      </div>
+      <div class="priority-cards">
+        <div class="pri-card urgent">
+          <div class="pri-left">
+            <div class="pri-badge urgent">URGENT — RIGHT NOW</div>
+            <div class="pri-title"><span class="prospect-name"></span> 96% churn risk — Retention email drafted and ready to send.</div>
+          </div>
+          <div class="pri-action">1 click to send →</div>
+        </div>
+        <div class="pri-card today">
+          <div class="pri-left">
+            <div class="pri-badge today">TODAY</div>
+            <div class="pri-title">Pipeline $50k short this month — 6 warm acquisition signals identified · strategic intervention drafted.</div>
+          </div>
+          <div class="pri-action">Review & approve →</div>
+        </div>
+        <div class="pri-card week">
+          <div class="pri-left">
+            <div class="pri-badge week">THIS WEEK</div>
+            <div class="pri-title">7 clients ready for upsell — Proposals auto-generated, waiting for review.</div>
+          </div>
+          <div class="pri-action">View proposals →</div>
+        </div>
+      </div>
+      <div class="s05-footer">
+        <div class="s05-footer-text"><span class="prospect-name"></span>'s founder: 2h/week reviewing results.</div>
+        <div class="s05-footer-sub">The system executes. You decide.</div>
+      </div>
+    </div>
+    <div class="feed" id="feed-5"></div>
+  </div>
+  <div class="nav-footer"><span class="nav-hint">← → TO NAVIGATE · ESC TO RESTART</span><div class="dots" id="dots5"></div></div>
+</div>
+
+<!-- SLIDE 06 — ANCHOR -->
+<div class="slide" id="slide-6">
+  <div class="hdr">
+    <div class="hdr-logo">AXON · FOUNDEROS</div>
+    <div class="hdr-bread">THE EQUATION</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="hdr-tabs"><div class="hdr-tab">CHAOS</div><div class="hdr-tab">ACTIVATION</div><div class="hdr-tab active">INTELLIGENCE</div></div>
+      <div class="hdr-count">06 / 07</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:85%"></div></div>
+  <div class="slide-centered s06">
+    <div class="s06-block">
+      <div class="s06-now">RIGHT NOW, <span class="prospect-name" style="color:var(--text)"></span> IS SPENDING:</div>
+      <div class="s06-line"><span class="s06-what">SDR team — 3 people, 18-month ramp, then they quit</span><span class="s06-cost">$180,000/yr</span></div>
+      <div class="s06-line"><span class="s06-what">Agency retainer — sends PDFs, zero memory</span><span class="s06-cost">$48,000/yr</span></div>
+      <div class="s06-line"><span class="s06-what">Tool stack — Apollo, Clay, Salesloft, extras</span><span class="s06-cost">$26,000/yr</span></div>
+      <div class="s06-total" id="s06-total">$0</div>
+      <div class="s06-total-lab">to grow slowly and unpredictably.</div>
+      <div class="s06-or" id="s06-or">
+        <div class="s06-or-price">Or: $55,000/yr with AXON.</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Pipeline predictable. Founder strategic. System permanent.</div>
+        <div class="s06-or-roi">$199,000 saved. Year 1. 3.6× ROI.</div>
+      </div>
+      <div class="s06-close" id="s06-close">
+        <div class="s06-q">The question is not whether you can afford AXON.</div>
+        <div class="s06-a">It's whether you can afford another year without it.</div>
+      </div>
+      <div class="s06-cta" id="s06-cta">
+        <button class="s06-btn" onclick="goTo(7)">→ APPLY FOR DEPLOYMENT</button>
+      </div>
+    </div>
+  </div>
+  <div class="nav-footer"><span class="nav-hint">ESC TO RESTART</span><div class="dots" id="dots6"></div></div>
+</div>
+
+<!-- SLIDE 07 — DEPLOYMENT -->
+<div class="slide" id="slide-7">
+  <div class="slide-centered s07">
+    <div class="s07-tag">DEPLOYMENT APPLICATION</div>
+    <div class="s07-title"><span class="prospect-name"></span> is in the queue.</div>
+    <div class="s07-sub">We accept a maximum of 10 deployments per month.<br>Not as a marketing tactic. As an operational reality.<br>Each deployment requires real attention for 30 days.</div>
+    <div class="s07-urg">⚡ 3 deployment slots remaining this month · Accepted by application only. No exceptions.</div>
+    <a class="s07-btn" href="https://tally.so/r/kdkXGd" target="_blank">→ APPLY NOW</a>
+    <div class="s07-steps">
+      <div class="s07-step"><div class="s07-step-n">01</div><div class="s07-step-t">REVIEW · 24h</div><div class="s07-step-d">We analyse your gap and confirm fit. No commitment.</div></div>
+      <div class="s07-step"><div class="s07-step-n">02</div><div class="s07-step-t">DEPLOY · 48h</div><div class="s07-step-d">AXON live. 2h founder context. Then autonomous.</div></div>
+      <div class="s07-step"><div class="s07-step-n">03</div><div class="s07-step-t">RESULTS · 30d</div><div class="s07-step-d">Pipeline predictable or full refund. No fine print.</div></div>
+    </div>
+    <div class="s07-footer">Zero risk · 90-day performance guarantee · Max 10 clients/month<br><span class="prospect-name"></span> stops depending on humans to grow.</div>
+  </div>
+  <div class="nav-footer"><span class="nav-hint">ESC TO RESTART</span><div class="dots" id="dots7"></div></div>
+</div>
+
+<script>
+const PROSPECT={name:"Stripe",tier:"ENTERPRISE",description:"Financial infrastructure to grow revenue through payments, financial services, and custom revenue models",icp:"Businesses of all sizes, from startups to enterprises",pain:"Revenue infrastructure gap — acquisition not systemised",cac_increase:"66%",agency_spend:"$9,600",signals_delivered:6,founder_hours:40,pipeline_gap:"$50,000"};
+
+let currentSlide=1;
+const totalSlides=7;
+let terminalDone=false;
+let slide3Initialized=false;
+let slide4Initialized=false;
+let slide6Initialized=false;
+let feedCounters={};
+let feedIntervals={};
+
+// Fill prospect data
+document.querySelectorAll('.prospect-name').forEach(el=>el.textContent=PROSPECT.name);
+document.querySelectorAll('.agency-spend').forEach(el=>el.textContent=PROSPECT.agency_spend);
+document.querySelectorAll('.signals-del').forEach(el=>el.textContent=PROSPECT.signals_delivered);
+document.querySelectorAll('.cac-inc').forEach(el=>el.textContent=PROSPECT.cac_increase);
+document.querySelectorAll('.founder-hrs').forEach(el=>el.textContent=PROSPECT.founder_hours);
+
+// Counter animation
+function animateCounter(el,target,duration,prefix,suffix){
+  let start=0,startTime=null;
+  function step(timestamp){
+    if(!startTime)startTime=timestamp;
+    const progress=Math.min((timestamp-startTime)/duration,1);
+    const ease=1-Math.pow(1-progress,3);
+    const val=Math.round(target*ease);
+    el.textContent=(prefix||'')+val.toLocaleString()+(suffix||'');
+    if(progress<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Dots
+function renderDots(containerId){
+  const c=document.getElementById(containerId);
+  if(!c)return;
+  c.innerHTML='';
+  for(let i=1;i<=totalSlides;i++){
+    const d=document.createElement('div');
+    d.className='dot'+(i===currentSlide?' active':'');
+    c.appendChild(d);
+  }
+}
+
+// Agent data
+const agentStatuses={
+  SIG:['indexing public footprint','querying funding news · 7d','scanning LinkedIn activity','analyzing signal patterns','mapping acquisition velocity'],
+  ICP:['scoring fit · 847 accounts','mapping ICP signature','ranking account quality','validating firmographics','computing intent scores'],
+  MKT:['scanning category topology','indexing content signals','tracking competitor moves','analyzing share of voice','mapping buyer journey'],
+  CMP:['sequencing send waves','drafting outreach variants','personalizing interventions','optimizing subject lines','a/b testing cadences'],
+  REV:['simulating CAC payback','modeling LTV scenarios','forecasting pipeline gap','calculating burn rate','optimizing pricing signals'],
+  STR:['ranking next-best moves','compiling intelligence layer','synthesizing market data','building strategy graph','updating decision model']
+};
+const agentColors={SIG:'green',ICP:'green',MKT:'blue',CMP:'blue',REV:'purple',STR:'purple'};
+
+function buildSidebar(containerId){
+  const c=document.getElementById(containerId);
+  if(!c)return;
+  c.innerHTML=`<div class="agents-title">AGENTS · 06</div>`;
+  Object.keys(agentStatuses).forEach((name,i)=>{
+    const color=agentColors[name];
+    const status=agentStatuses[name][0];
+    const isActive=i<3;
+    const div=document.createElement('div');
+    div.className='agent';
+    div.id=`agent-${containerId}-${name}`;
+    div.innerHTML=`<div class="agent-dot ${color}${isActive?' active':''}"></div><div class="agent-info"><div class="agent-name">${name}</div><div class="agent-status" id="status-${containerId}-${name}">> ${status}</div></div>`;
+    c.appendChild(div);
+  });
+  // Rotate statuses
+  Object.keys(agentStatuses).forEach((name,i)=>{
+    let idx=0;
+    setInterval(()=>{
+      idx=(idx+1)%agentStatuses[name].length;
+      const el=document.getElementById(`status-${containerId}-${name}`);
+      if(el)el.textContent='> '+agentStatuses[name][idx];
+      const dot=document.querySelector(`#agent-${containerId}-${name} .agent-dot`);
+      if(dot){const active=Math.random()>0.3;dot.classList.toggle('active',active);}
+    },3000+i*400);
+  });
+}
+
+// Signal feed data
+const signals=[
+  {type:'pos',text:'+ Series A detected · infra spend +38%'},
+  {type:'pos',text:'+ ICP match: 8 new accounts queued'},
+  {type:'neg',text:'⚠ Competitor launched AI mode'},
+  {type:'pos',text:'+ Revenue Optimizer rebalanced 12 sequences'},
+  {type:'act',text:'→ Campaign Orchestrator: 3 sequences live'},
+  {type:'pos',text:'+ Hiring velocity rising · 4 GTM roles'},
+  {type:'neg',text:'⚠ Pipeline gap -$32k vs forecast'},
+  {type:'pos',text:'+ Intent confidence climbing · 87%'},
+  {type:'neg',text:'⚠ Champion changed roles at Northwind'},
+  {type:'act',text:'→ Strategy Engine confidence 94%'},
+  {type:'pos',text:'+ CRM migration signal detected'},
+  {type:'act',text:'→ Acquisition stack identified · Apollo + Clay'},
+  {type:'pos',text:'+ Market Analyst flagged category shift'},
+  {type:'neg',text:'⚠ Series A detected · burn multiple rising'},
+  {type:'pos',text:'+ Revenue Optimizer rebalanced sequences'},
+];
+
+function buildFeed(containerId){
+  const c=document.getElementById(containerId);
+  if(!c)return;
+  feedCounters[containerId]=0;
+  c.innerHTML=`<div class="feed-header"><span style="letter-spacing:.1em;">SIGNAL FEED · LIVE</span><span class="feed-counter" id="feed-count-${containerId}">0000</span></div><div class="feed-items" id="feed-items-${containerId}"></div>`;
+  let sigIdx=0;
+  feedIntervals[containerId]=setInterval(()=>{
+    feedCounters[containerId]++;
+    const countEl=document.getElementById(`feed-count-${containerId}`);
+    if(countEl)countEl.textContent=String(feedCounters[containerId]).padStart(4,'0');
+    const itemsEl=document.getElementById(`feed-items-${containerId}`);
+    if(!itemsEl)return;
+    const sig=signals[sigIdx%signals.length];
+    sigIdx++;
+    const item=document.createElement('div');
+    item.className=`feed-item ${sig.type}`;
+    item.textContent=sig.text;
+    itemsEl.appendChild(item);
+    const items=itemsEl.querySelectorAll('.feed-item');
+    if(items.length>6)items[0].remove();
+  },3000+Math.random()*2000);
+}
+
+// Terminal animation
+const termLines=[
+  {text:'→ Searching funding news (last 7d)...',delay:400,type:''},
+  {text:'→ Scanning LinkedIn CEO activity...',delay:500,type:''},
+  {text:'→ Checking job postings: Director of Revenue...',delay:450,type:''},
+  {text:'→ Analyzing competitor landscape...',delay:400,type:''},
+  {text:'→ Mapping technology stack changes...',delay:500,type:''},
+  {text:'→ Indexing community signals...',delay:400,type:''},
+  {text:'',delay:200,type:''},
+  {text:'✓ SIGNAL · Series A extension $6M — 7d ago',delay:300,type:'sig'},
+  {text:'✓ SIGNAL · Hiring Director of Revenue',delay:350,type:'sig'},
+  {text:'✓ SIGNAL · CEO posted "need to scale pipeline fast" — yesterday',delay:400,type:'sig'},
+  {text:'✓ SIGNAL · Burn multiple elevated (1.8x)',delay:300,type:'sig'},
+  {text:'⚠ COMPETITOR · Rival launched AI mode last week',delay:400,type:'comp'},
+  {text:'',delay:300,type:''},
+  {text:'',delay:100,type:'sum',content:`<span style="color:var(--text)">PROSPECT_NAME</span>         ICP: 94/100`},
+  {text:'',delay:100,type:'sum',content:'Buy Signal: <span style="color:var(--green)">ACTIVE</span>  ·  Priority: <span style="color:var(--amber)">HIGH</span>'},
+  {text:'Urgency Window: 11 days',delay:200,type:'sum'},
+  {text:'',delay:200,type:''},
+  {text:'→ Analysis complete. Cost: $0.004 · Time: 58s',delay:300,type:''},
+  {text:'→ Passing to Reasoning Engine...',delay:400,type:''},
+];
+
+function runTerminal(){
+  const output=document.getElementById('term-output');
+  if(!output)return;
+  output.innerHTML='';
+  let totalDelay=600;
+  termLines.forEach((line,i)=>{
+    totalDelay+=line.delay;
+    const d=totalDelay;
+    setTimeout(()=>{
+      const div=document.createElement('div');
+      div.className=`term-line ${line.type}`;
+      if(line.content){
+        div.innerHTML=line.content.replace('PROSPECT_NAME',PROSPECT.name);
+      } else {
+        div.textContent=line.text;
+      }
+      output.appendChild(div);
+      output.scrollTop=output.scrollHeight;
+    },d);
+  });
+  // Dramatic pause then amber
+  setTimeout(()=>{
+    const amber=document.getElementById('term-amber');
+    if(amber)amber.classList.add('show');
+    terminalDone=true;
+  },totalDelay+3000);
+}
+
+// Slide 04 animations
+function runSlide4(){
+  animateCounter(document.getElementById('c47'),47,1500,'','');
+  setTimeout(()=>document.getElementById('card1').classList.add('show'),800);
+  setTimeout(()=>document.getElementById('card2').classList.add('show'),1400);
+  setTimeout(()=>document.getElementById('card3').classList.add('show'),2000);
+  setTimeout(()=>document.getElementById('s04-footer').classList.add('show'),3200);
+}
+
+// Slide 06 anchor sequence
+function runSlide6(){
+  animateCounter(document.getElementById('s06-total'),254000,2000,'$','');
+  setTimeout(()=>document.getElementById('s06-or').classList.add('show'),3500);
+  setTimeout(()=>document.getElementById('s06-close').classList.add('show'),6000);
+  setTimeout(()=>document.getElementById('s06-cta').classList.add('show'),10000);
+}
+
+// Navigation
+function goTo(n){
+  if(n<1||n>totalSlides)return;
+  document.getElementById('slide-'+currentSlide).classList.remove('active');
+  currentSlide=n;
+  document.getElementById('slide-'+currentSlide).classList.add('active');
+  // Init slides
+  if(n===2){buildSidebar('sidebar-2');buildFeed('feed-2');}
+  if(n===3&&!slide3Initialized){slide3Initialized=true;buildSidebar('sidebar-3');buildFeed('feed-3');runTerminal();}
+  else if(n===3){buildSidebar('sidebar-3');buildFeed('feed-3');}
+  if(n===4&&!slide4Initialized){slide4Initialized=true;buildSidebar('sidebar-4');buildFeed('feed-4');runSlide4();}
+  else if(n===4){buildSidebar('sidebar-4');buildFeed('feed-4');}
+  if(n===5){buildSidebar('sidebar-5');buildFeed('feed-5');}
+  if(n===6&&!slide6Initialized){slide6Initialized=true;runSlide6();}
+  // Update all dots
+  for(let i=1;i<=totalSlides;i++)renderDots('dots'+i);
+}
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '){if(currentSlide<totalSlides)goTo(currentSlide+1);}
+  else if(e.key==='ArrowLeft'){if(currentSlide>1)goTo(currentSlide-1);}
+  else if(e.key==='Escape'){goTo(1);}
+});
+
+// Init slide 1
+function initSlide1(){
+  animateCounter(document.getElementById('c-main'),78,2000,'','');
+  animateCounter(document.getElementById('c1'),262,2000,'','');
+  animateCounter(document.getElementById('c2'),28,2000,'','');
+  animateCounter(document.getElementById('c3'),130,2000,'','');
+  animateCounter(document.getElementById('c4'),11,2000,'','');
+  setTimeout(()=>document.getElementById('s01-text').classList.add('show'),2200);
+  setTimeout(()=>document.getElementById('s01-cta').classList.add('show'),3200);
+  renderDots('dots1');
+}
+
+// Start
+initSlide1();
+</script>
+</body>
+</html>
