@@ -25,11 +25,15 @@ def _normalize_url(domain: str) -> str:
     return domain
 
 
+GROQ_TIMEOUT_SECONDS = 20
+GROQ_MAX_RETRIES = 2
+
+
 def _groq_client() -> Groq:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set")
-    return Groq(api_key=api_key)
+    return Groq(api_key=api_key, timeout=GROQ_TIMEOUT_SECONDS, max_retries=GROQ_MAX_RETRIES)
 
 
 def _firecrawl_client() -> FirecrawlApp:
@@ -50,21 +54,74 @@ def _extract_json(text: str) -> dict[str, Any]:
         raise ValueError("Model did not return valid JSON") from None
 
 
+SCRAPE_TIMEOUT_SECONDS = 20
+PRIORITY_PATH_KEYWORDS = ("career", "jobs", "about", "team", "pricing")
+MAX_PAGES_TOTAL = 4
+MAX_CHARS_PER_PAGE = 6000
+
+
+def _single_page_markdown(app: "FirecrawlApp", url: str) -> str | None:
+    try:
+        result = app.scrape_url(
+            url,
+            params={"formats": ["markdown"], "timeout": SCRAPE_TIMEOUT_SECONDS * 1000},
+        )
+    except Exception:
+        return None
+    if not result or not isinstance(result, dict):
+        return None
+    if result.get("success") is False:
+        return None
+    data = result.get("data") or result
+    if isinstance(data, dict):
+        return data.get("markdown") or None
+    if isinstance(data, str):
+        return data
+    return None
+
+
+def _discover_priority_urls(app: "FirecrawlApp", base_url: str) -> list[str]:
+    """Find up to MAX_PAGES_TOTAL-1 subpages likely to hold hiring/team/pricing signal."""
+    try:
+        mapped = app.map_url(base_url)
+    except Exception:
+        return []
+    links: list[str] = []
+    if isinstance(mapped, dict):
+        links = mapped.get("links") or mapped.get("data") or []
+    elif isinstance(mapped, list):
+        links = mapped
+    links = [l for l in links if isinstance(l, str)]
+
+    picked: list[str] = []
+    for keyword in PRIORITY_PATH_KEYWORDS:
+        for link in links:
+            if keyword in link.lower() and link not in picked:
+                picked.append(link)
+                break
+        if len(picked) >= MAX_PAGES_TOTAL - 1:
+            break
+    return picked
+
+
 def _scrape_domain(url: str) -> str:
+    """Scrape the homepage plus up to 3 priority subpages (careers/about/pricing).
+    Falls back gracefully: if subpage discovery or a subpage fetch fails, we still
+    return whatever real content we did get, rather than aborting the whole scan."""
     app = _firecrawl_client()
-    result = app.scrape_url(url, params={"formats": ["markdown"]})
-    if not result:
-        raise RuntimeError("Firecrawl returned no data")
-    if isinstance(result, dict):
-        if result.get("success") is False:
-            raise RuntimeError(result.get("error", "Firecrawl scrape failed"))
-        data = result.get("data") or result
-        markdown = data.get("markdown") if isinstance(data, dict) else None
-        if markdown:
-            return markdown
-        if isinstance(data, str):
-            return data
-    raise RuntimeError("Could not extract markdown content from scrape")
+
+    homepage_md = _single_page_markdown(app, url)
+    if not homepage_md:
+        raise RuntimeError("Firecrawl could not retrieve homepage content")
+
+    pages = [homepage_md[:MAX_CHARS_PER_PAGE]]
+
+    for subpage_url in _discover_priority_urls(app, url):
+        sub_md = _single_page_markdown(app, subpage_url)
+        if sub_md:
+            pages.append(f"\n\n--- Page: {subpage_url} ---\n{sub_md[:MAX_CHARS_PER_PAGE]}")
+
+    return "".join(pages)
 
 
 def _detect_company_size(content: str, signals: str) -> str:
@@ -115,19 +172,48 @@ def _get_structural_signal(profile: dict[str, str], content: str) -> str:
 
 
 def _generate_infrastructure_alerts(company_name: str, profile: dict[str, str], metrics: dict[str, str]) -> list[dict[str, str]]:
-    multiplier = int(metrics.get("multiplier", "4"))
-    agency_cost = multiplier * 800
-    cost_per_signal = agency_cost // 2
-    hours = metrics.get("hours", "18h/week").replace("h/week", "")
-    deals_lost = max(2, multiplier // 2)
-    cac_increase = 30 + (multiplier * 3)
+    """Build alerts strictly from evidence extracted by the model. No invented
+    financial figures — if there's no real signal for a category, it's skipped."""
+    alerts: list[dict[str, str]] = []
 
-    return [
-        {"level": "critical", "text": f"Agency invoice: ${agency_cost:,}. Qualified acquisition signals delivered: {multiplier // 2}. Cost per signal: ${cost_per_signal:,}."},
-        {"level": "critical", "text": f"CAC increased {cac_increase}% YoY at {company_name}. GTM team has no systemic explanation."},
-        {"level": "warning",  "text": f"{deals_lost} deals lost to competitor who moved on intent signal first. No early warning system in place."},
-        {"level": "warning",  "text": f"Founder spent {hours}h this week on revenue operations. Qualified meetings generated: 0."},
-    ]
+    hiring_roles = profile.get("hiring_roles") or []
+    if hiring_roles:
+        roles = ", ".join(hiring_roles[:3])
+        alerts.append({
+            "level": "critical",
+            "text": f"Open GTM/sales roles detected: {roles}. Hiring to patch a pipeline gap manually.",
+        })
+
+    tech_stack = profile.get("tech_stack") or []
+    sales_motion = profile.get("sales_motion", "")
+    if tech_stack and sales_motion in ("outbound", "hybrid"):
+        stack = ", ".join(tech_stack[:4])
+        alerts.append({
+            "level": "warning",
+            "text": f"Sales stack in use ({stack}) with {sales_motion} motion — no evidence of an intent/signal layer feeding it.",
+        })
+
+    growth_indicators = profile.get("growth_indicators") or []
+    if growth_indicators:
+        alerts.append({
+            "level": "warning",
+            "text": f"Growth signal on record: {growth_indicators[0]}. No confirmation this is being acted on systematically.",
+        })
+
+    gap = profile.get("biggest_gap", "")
+    if gap:
+        alerts.append({
+            "level": "critical" if profile.get("intervention_urgency") == "critical" else "warning",
+            "text": f"Structural gap identified from site content: {gap}.",
+        })
+
+    if not alerts:
+        alerts.append({
+            "level": "info",
+            "text": "No explicit GTM/hiring/funding signal found on the scanned pages. This reflects available public content, not company performance.",
+        })
+
+    return alerts
 
 
 def _analyze_profile(domain: str, content: str) -> dict[str, Any]:
@@ -149,7 +235,10 @@ def _analyze_profile(domain: str, content: str) -> dict[str, Any]:
                     "CRITICAL: Focus on revenue, sales, and GTM signals. "
                     "Look for: hiring pages, job listings, team size, funding, tech stack, "
                     "pricing model, sales motion, ICP signals, and growth indicators. "
-                    "Never return 'none observed' for any field."
+                    "GROUND EVERY FIELD IN THE SUPPLIED CONTENT ONLY. If there is no real "
+                    "evidence for a field (e.g. no hiring info visible, no funding mentioned), "
+                    "return an empty string or empty list for it — do NOT invent or infer a "
+                    "plausible-sounding value. Fabricated specifics are worse than an honest gap."
                 ),
             },
             {
@@ -162,9 +251,9 @@ def _analyze_profile(domain: str, content: str) -> dict[str, Any]:
                     '- "product": one-sentence product description\n'
                     '- "icp": ideal customer profile (who they sell to)\n'
                     '- "stage": growth stage (seed/early/growth/scale/enterprise)\n'
-                    '- "signals": SPECIFIC hiring, funding, or growth signals. Examples: '
-                    '"Actively hiring 3 GTM roles", "Raised Series A $8M in 2024", '
-                    '"Expanding to UK market". NEVER say "none observed".\n'
+                    '- "signals": SPECIFIC hiring, funding, or growth signals found in the content. '
+                    'Examples: "Actively hiring 3 GTM roles", "Raised Series A $8M in 2024", '
+                    '"Expanding to UK market". Return an empty string if none are present in the content.\n'
                     '- "pain": the single biggest revenue/pipeline challenge they face RIGHT NOW\n'
                     '- "angle": most compelling strategic intervention based on evidence\n'
                     '- "size": one of: startup/growth/scale/enterprise\n'
@@ -191,17 +280,17 @@ def _analyze_profile(domain: str, content: str) -> dict[str, Any]:
         "name": str(data.get("name", domain)).strip(),
         "product": str(data.get("product", "Unknown")).strip(),
         "icp": str(data.get("icp", "Unknown")).strip(),
-        "stage": str(data.get("stage", "early")).strip(),
-        "signals": str(data.get("signals", "Growth-stage GTM motion detected")).strip(),
-        "pain": str(data.get("pain", "Pipeline predictability and revenue consistency")).strip(),
-        "angle": str(data.get("angle", "Autonomous acquisition infrastructure deployment")).strip(),
+        "stage": str(data.get("stage", "")).strip(),
+        "signals": str(data.get("signals", "")).strip(),
+        "pain": str(data.get("pain", "")).strip(),
+        "angle": str(data.get("angle", "")).strip(),
         "size": str(data.get("size", "startup")).strip(),
         "tech_stack": data.get("tech_stack", []),
-        "sales_motion": str(data.get("sales_motion", "hybrid")).strip(),
-        "revenue_model": str(data.get("revenue_model", "SaaS")).strip(),
+        "sales_motion": str(data.get("sales_motion", "")).strip(),
+        "revenue_model": str(data.get("revenue_model", "")).strip(),
         "hiring_roles": data.get("hiring_roles", []),
         "growth_indicators": data.get("growth_indicators", []),
-        "biggest_gap": str(data.get("biggest_gap", "Revenue infrastructure not systemised")).strip(),
+        "biggest_gap": str(data.get("biggest_gap", "")).strip(),
         "axon_fit": int(data.get("axon_fit", 5)),
         "intervention_urgency": str(data.get("intervention_urgency", "medium")).strip(),
         "ceo_name": str(data.get("ceo_name", "")).strip(),
@@ -304,7 +393,24 @@ def _score_lead(profile: dict[str, Any]) -> tuple[Score, int]:
     return "COLD", score_num
 
 
+_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
+
+
 def run_scout(domain: str) -> dict[str, Any]:
+    import time
+
+    cache_key = domain.strip().lower()
+    cached = _CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < CACHE_TTL_SECONDS:
+        return cached[1]
+
+    result = _run_scout_uncached(domain)
+    _CACHE[cache_key] = (time.time(), result)
+    return result
+
+
+def _run_scout_uncached(domain: str) -> dict[str, Any]:
     url = _normalize_url(domain)
     content = _scrape_domain(url)
     profile = _analyze_profile(domain, content)
