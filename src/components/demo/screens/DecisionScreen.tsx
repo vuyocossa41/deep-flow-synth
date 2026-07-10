@@ -1,16 +1,14 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import type { DemoData } from "@/lib/demo-data";
 import type { ScoutResult } from "@/lib/scout";
 import { OrchestrationGraph } from "../OrchestrationGraph";
 
 interface Props {
-  data: DemoData;
-  scoutData?: import("@/lib/scout").ScoutResult | null;
+  scoutData?: ScoutResult | null;
   onComplete: () => void;
 }
 
-type Urgency = "urgent" | "today" | "week";
+type Urgency = "urgent" | "today" | "week" | "none";
 interface Decision {
   num: string;
   urgency: Urgency;
@@ -20,49 +18,34 @@ interface Decision {
   reasoning: string[];
 }
 
-export function DecisionScreen({ data, scoutData, onComplete }: Props) {
-  const churn = data.churnClients[0];
-  const decisions: Decision[] = [
-    {
+export function DecisionScreen({ scoutData, onComplete }: Props) {
+  const alerts = scoutData?.infrastructure_alerts ?? [];
+  const growthIndicators = scoutData?.profile?.growth_indicators ?? [];
+  const structuralSignal = scoutData?.structural_signal ?? "";
+
+  const decisions: Decision[] = alerts.map((a, i) => ({
+    num: String(i + 1).padStart(2, "0"),
+    urgency: a.level === "critical" ? "urgent" : a.level === "warning" ? "today" : "week",
+    title: a.text,
+    detail: "Derived from real scan content — Firecrawl + Groq analysis.",
+    action: "View detail →",
+    reasoning: [
+      structuralSignal ? `Structural pattern: ${structuralSignal}` : "",
+      ...growthIndicators.slice(0, 2).map((g) => `Growth signal: ${g}`),
+      `Fit score: ${scoutData?.score_num ?? 0}/100 · ${scoutData?.score ?? "—"}`,
+    ].filter(Boolean),
+  }));
+
+  if (decisions.length === 0) {
+    decisions.push({
       num: "01",
-      urgency: "urgent",
-      title: `${churn?.name ?? "TechCorp"} — ${churn?.risk ?? 87}% churn probability`,
-      detail: "Signal detected. Retention briefing compiled. One action pending.",
-      action: "Review signal →",
-      reasoning: [
-        `Trigger: ${churn?.reason ?? "zero logins · 14 days"}`,
-        `Revenue exposure: $${churn?.mrr ?? 1800}/mo · annualised $${((churn?.mrr ?? 1800) * 12).toLocaleString()}`,
-        `Confidence: ${churn?.risk ?? 87}% · model: retention-v3`,
-        `Without intervention: churn likely within 9 days`,
-      ],
-    },
-    {
-      num: "02",
-      urgency: "today",
-      title: `Pipeline $${(40 + (data.icpScore % 12)).toFixed(0)}k below target — ${3 + (data.icpScore % 4)} signals identified`,
-      detail: "AXON surfaced acquisition signals invisible to your CRM.",
-      action: "View intelligence →",
-      reasoning: [
-        `Top signal: ${data.company} · ICP score ${data.icpScore}/100`,
-        `Buying trigger: ${data.hiringRole} · expansion phase`,
-        `Recent event: ${data.fundingRound} ${data.fundingAmount}`,
-        `Recommended action: personalised outreach · template ready`,
-      ],
-    },
-    {
-      num: "03",
-      urgency: "week",
-      title: `${data.upsellCount} accounts above expansion threshold`,
-      detail: "Revenue signal: usage patterns indicate upsell readiness.",
-      action: "View proposals →",
-      reasoning: [
-        `Average expansion: $${(800 + (data.icpScore % 7) * 50).toFixed(0)}/mo per account`,
-        `Seat utilisation avg: 84% · ceiling approached`,
-        `Predicted close rate: 62% · proposals drafted`,
-        `Total pipeline at risk if ignored: $${((800 + (data.icpScore % 7) * 50) * data.upsellCount).toLocaleString()}/mo`,
-      ],
-    },
-  ];
+      urgency: "none",
+      title: "No infrastructure gaps detected from public content",
+      detail: "The scan didn't find hiring, funding, or growth signals on the pages checked.",
+      action: "—",
+      reasoning: ["This reflects available public content, not company performance."],
+    });
+  }
 
   const [visible, setVisible] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
@@ -85,12 +68,11 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
       window.clearTimeout(done);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [scoutData]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-24">
 
-      {/* ── CTA TALLY — VISÍVEL DESDE O SEGUNDO 0 ── */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -103,11 +85,11 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
             ⚡ 3 deployment slots remaining this month
           </div>
           <div className="mt-1 font-mono text-[12px]" style={{ color: "#4a6268" }}>
-            This is what your pipeline looks like after AXON deploys.{" "}
-            <span style={{ color: "#dedad4" }}>Ready to run this on your real data?</span>
+            This is real signal from your domain.{" "}
+            <span style={{ color: "#dedad4" }}>Ready to run this on your full pipeline?</span>
           </div>
         </div>
-        <a
+        
           href="https://tally.so/r/kdkXGd"
           target="_blank"
           rel="noopener noreferrer"
@@ -118,7 +100,6 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
         </a>
       </motion.div>
 
-      {/* Header */}
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-mind">
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-mind" />
@@ -130,14 +111,13 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
       </div>
 
       <div className="mb-4 font-mono text-[10px] text-muted-foreground/60 tracking-wide">
-        Revenue signals processed · decisions ranked by impact · founder time protected
+        Alerts derived only from real scan content — no fabricated figures
       </div>
 
       <div className="glass mb-4 rounded-2xl p-4">
         <OrchestrationGraph active="decision" height={130} />
       </div>
 
-      {/* Decision cards */}
       <ul className="space-y-2">
         {decisions.map((d, idx) => {
           const show = idx < visible;
@@ -147,14 +127,18 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
               ? { border: "border-l-danger", text: "text-danger" }
               : d.urgency === "today"
                 ? { border: "border-l-warn", text: "text-warn" }
-                : { border: "border-l-info", text: "text-info" };
+                : d.urgency === "week"
+                  ? { border: "border-l-info", text: "text-info" }
+                  : { border: "border-l-border", text: "text-muted-foreground" };
 
           const label =
             d.urgency === "urgent"
               ? "⚠ CRITICAL SIGNAL"
               : d.urgency === "today"
                 ? "TODAY"
-                : "THIS WEEK";
+                : d.urgency === "week"
+                  ? "THIS WEEK"
+                  : "NO SIGNAL";
 
           return (
             <motion.li
@@ -177,8 +161,8 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
                   </div>
                   <div className="font-display text-[15px] leading-snug">
                     <span className="font-semibold">{d.title}</span>
-                    <span className="text-muted-foreground"> — {d.detail}</span>
                   </div>
+                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{d.detail}</div>
                 </div>
                 <div className="px-4 font-mono text-[11px] text-signal whitespace-nowrap">
                   {isOpen ? "▾ collapse" : d.action}
@@ -200,25 +184,21 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
                           Signal breakdown · why AXON flagged this
                         </div>
                         <ul className="space-y-1 font-mono text-[11.5px] text-foreground/85">
-                          {d.reasoning.map((r) => (
+                          {d.reasoning.length ? d.reasoning.map((r) => (
                             <li key={r} className="flex gap-2">
                               <span className="text-mind">›</span>
                               {r}
                             </li>
-                          ))}
+                          )) : (
+                            <li className="text-muted-foreground">No further detail available.</li>
+                          )}
                         </ul>
                         <div className="mt-3 font-mono text-[10px] text-muted-foreground/50 tracking-wide">
-                          AXON processed 140+ data points to surface this decision
+                          Based on real content from the scanned pages — no fabricated metrics
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <button className="rounded-md bg-signal px-4 py-2 font-display text-sm font-bold text-primary-foreground shadow-glow transition-transform hover:-translate-y-0.5">
-                          ✓ Approve
-                        </button>
-                        <button className="rounded-md border border-border bg-panel/60 px-4 py-2 font-display text-sm text-foreground/80 hover:border-foreground/40 hover:text-foreground">
-                          Snooze 1d
-                        </button>
-                        <a
+                        
                           href="https://tally.so/r/kdkXGd"
                           target="_blank"
                           rel="noopener noreferrer"
@@ -236,7 +216,6 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
         })}
       </ul>
 
-      {/* Footer CTA — aparece depois dos cards */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: visible >= decisions.length ? 1 : 0 }}
@@ -248,10 +227,10 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
             AXON · Revenue Intelligence Infrastructure
           </div>
           <div className="font-mono text-[11px] text-muted-foreground">
-            Palantir-grade signal intelligence · built for founders running $500k–$5M ARR
+            Built for founders running $500k–$5M ARR
           </div>
         </div>
-        <a
+        
           href="https://tally.so/r/kdkXGd"
           target="_blank"
           rel="noopener noreferrer"
@@ -263,4 +242,3 @@ export function DecisionScreen({ data, scoutData, onComplete }: Props) {
     </div>
   );
 }
-
