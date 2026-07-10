@@ -16,14 +16,25 @@ const WHAT_IS_NOT = [
 
 export function OverviewScreen({ company, scoutData, onContinue }: Props) {
   const name = scoutData?.profile?.name || company || "your company";
-  const pain = scoutData?.profile?.pain || "Pipeline predictability and revenue consistency";
-  const signals = scoutData?.profile?.signals || "Growth-stage GTM motion detected";
-  const gap = scoutData?.profile?.biggest_gap || "Revenue infrastructure not systemised";
-  const salesMotion = scoutData?.profile?.sales_motion || "hybrid";
-  const stage = scoutData?.profile?.stage || "growth";
-  const axonFit = scoutData?.profile?.axon_fit || 7;
-  const humans = scoutData?.metrics?.humans || "4 humans";
-  const hours = scoutData?.metrics?.hours || "28h/week";
+  const pain = scoutData?.profile?.pain || "";
+  const signals = scoutData?.profile?.signals || "";
+  const gap = scoutData?.profile?.biggest_gap || "";
+  const salesMotion = scoutData?.profile?.sales_motion || "";
+  const stage = scoutData?.profile?.stage || "";
+  const axonFit = scoutData?.profile?.axon_fit;
+  const humans = scoutData?.metrics?.humans || "";
+  const hours = scoutData?.metrics?.hours || "";
+
+  const signalDesc = signals
+    ? `Signal: ${signals.slice(0, 80)}. `
+    : "No explicit hiring/funding signal found on the scanned pages. ";
+  const gapDesc = gap
+    ? `Gap identified: ${gap.slice(0, 70)}. `
+    : "No structural gap identified from available content. ";
+  const painDesc = pain ? `Pain: ${pain.slice(0, 70)}. ` : "";
+  const dependencyDesc = humans || hours
+    ? `Current dependency: ${[humans, hours].filter(Boolean).join(", ")} on revenue ops.`
+    : "";
 
   const LAYERS = [
     {
@@ -31,15 +42,15 @@ export function OverviewScreen({ company, scoutData, onContinue }: Props) {
       name: "Signal Scout",
       tag: "ALWAYS ON",
       color: "#c8f060",
-      description: "Scans 140+ public data sources for " + name + ". Signal: " + signals.slice(0, 80) + ". Detects intent 11 days before your competitor acts.",
-      metrics: ["847 accounts scored/day", "11-day advantage window", "Real-time intent detection"],
+      description: `Scans public pages for ${name}. ${signalDesc}Real detection, no simulated data.`,
+      metrics: ["Real-time page scan", "Public press search", "No fabricated figures"],
     },
     {
       id: "02",
       name: "Persistent Memory",
       tag: "COMPOUNDS OVER TIME",
       color: "#60a8f0",
-      description: "Every signal for " + name + " stored permanently. Gap identified: " + gap.slice(0, 70) + ". Unlike agencies never forgets, never leaves.",
+      description: `Every signal for ${name} stored permanently. ${gapDesc}Unlike agencies, never forgets, never leaves.`,
       metrics: ["ICP pattern recognition", "Zero knowledge loss", "Compounds with every deploy"],
     },
     {
@@ -47,15 +58,15 @@ export function OverviewScreen({ company, scoutData, onContinue }: Props) {
       name: "Intelligence Layer",
       tag: "AUTONOMOUS",
       color: "#f0a040",
-      description: "Groq LLaMA 3.3 70B processes " + name + " signals. Pain: " + pain.slice(0, 70) + ". Motion: " + salesMotion + ". Stage: " + stage + ". AXON fit: " + String(axonFit) + "/10.",
-      metrics: ["96% signal confidence", "Decisions ranked by impact", "2h/week founder time"],
+      description: `Groq LLaMA 3.3 70B processes ${name} signals. ${painDesc}${salesMotion ? `Motion: ${salesMotion}. ` : ""}${stage ? `Stage: ${stage}. ` : ""}${axonFit != null ? `AXON fit: ${axonFit}/10.` : ""}`,
+      metrics: ["Grounded in real scan content", "Decisions ranked by impact", "Human review before send"],
     },
     {
       id: "04",
       name: "Data Sovereignty",
       tag: "YOUR INFRASTRUCTURE",
       color: "#f05870",
-      description: "AXON deploys inside " + name + ". Your data never leaves. No third-party sharing. Current dependency: " + humans + ", " + hours + " on revenue ops.",
+      description: `AXON deploys inside ${name}. Your data never leaves. No third-party sharing. ${dependencyDesc}`,
       metrics: ["Private deployment", "No vendor lock-in", "Data stays yours forever"],
     },
   ];
@@ -85,10 +96,10 @@ export function OverviewScreen({ company, scoutData, onContinue }: Props) {
               {"Intelligence scan complete · " + name}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 font-mono text-[11px]">
-              <div><span style={{ color: "#4a4845" }}>{"Signal: "}</span><span style={{ color: "#dedad4" }}>{signals.slice(0, 35) + "..."}</span></div>
-              <div><span style={{ color: "#4a4845" }}>{"Stage: "}</span><span style={{ color: "#dedad4" }}>{stage}</span></div>
-              <div><span style={{ color: "#4a4845" }}>{"AXON fit: "}</span><span style={{ color: "#c8f060" }}>{String(axonFit) + "/10"}</span></div>
-              <div><span style={{ color: "#4a4845" }}>{"Motion: "}</span><span style={{ color: "#dedad4" }}>{salesMotion}</span></div>
+              <div><span style={{ color: "#4a4845" }}>{"Signal: "}</span><span style={{ color: "#dedad4" }}>{signals ? signals.slice(0, 35) + "..." : "none detected"}</span></div>
+              <div><span style={{ color: "#4a4845" }}>{"Stage: "}</span><span style={{ color: "#dedad4" }}>{stage || "unknown"}</span></div>
+              <div><span style={{ color: "#4a4845" }}>{"AXON fit: "}</span><span style={{ color: "#c8f060" }}>{axonFit != null ? `${axonFit}/10` : "n/a"}</span></div>
+              <div><span style={{ color: "#4a4845" }}>{"Motion: "}</span><span style={{ color: "#dedad4" }}>{salesMotion || "unknown"}</span></div>
             </div>
           </motion.div>
         )}
