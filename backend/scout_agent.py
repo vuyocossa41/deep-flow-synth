@@ -1,8 +1,10 @@
 import json
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Literal
 
+import httpx
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
 from groq import Groq
@@ -11,6 +13,59 @@ load_dotenv()
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
 Score = Literal["HOT", "WARM", "COLD"]
+
+EXTERNAL_TIMEOUT = 8.0  # seconds, keep the free-signal calls fast and non-blocking
+
+
+def _bare_domain(domain: str) -> str:
+    d = domain.strip().lower()
+    d = re.sub(r"^https?://", "", d)
+    d = re.sub(r"^www\.", "", d)
+    return d.split("/")[0]
+
+
+def get_logo_url(domain: str) -> str:
+    """Clearbit Logo API — free, no key required."""
+    return f"https://logo.clearbit.com/{_bare_domain(domain)}"
+
+
+def get_domain_age(domain: str) -> dict[str, Any]:
+    """RDAP — free, no key. Returns registration date and age in years, or empty on failure."""
+    bare = _bare_domain(domain)
+    try:
+        with httpx.Client(timeout=EXTERNAL_TIMEOUT) as client:
+            resp = client.get(f"https://rdap.org/domain/{bare}")
+        if resp.status_code != 200:
+            return {}
+        data = resp.json()
+        events = data.get("events", [])
+        registered = next((e.get("eventDate") for e in events if e.get("eventAction") == "registration"), None)
+        if not registered:
+            return {}
+        reg_date = datetime.fromisoformat(registered.replace("Z", "+00:00"))
+        age_years = round((datetime.now(timezone.utc) - reg_date).days / 365.25, 1)
+        return {"registered": registered[:10], "age_years": age_years}
+    except Exception:
+        return {}
+
+
+def get_pagespeed_score(domain: str) -> dict[str, Any]:
+    """Google PageSpeed Insights — free, no key needed for light/occasional use.
+    Returns empty dict on failure/timeout rather than blocking the whole scan."""
+    bare = _bare_domain(domain)
+    try:
+        with httpx.Client(timeout=EXTERNAL_TIMEOUT) as client:
+            resp = client.get(
+                "https://www.googleapis.com/pagespeedonline/v5/runPagespeed",
+                params={"url": f"https://{bare}", "strategy": "mobile", "category": "performance"},
+            )
+        if resp.status_code != 200:
+            return {}
+        data = resp.json()
+        score = data["lighthouseResult"]["categories"]["performance"]["score"]
+        return {"performance_score": round(score * 100)}
+    except Exception:
+        return {}
 
 
 def _normalize_url(domain: str) -> str:
@@ -483,29 +538,39 @@ def run_scout(domain: str) -> dict[str, Any]:
 
 
 def _run_scout_uncached(domain: str) -> dict[str, Any]:
-    url = _normalize_url(domain)
-    content = _scrape_domain(url)
-    profile = _analyze_profile(domain, content)
+    import concurrent.futures
 
-    # Override LLM-guessed tech_stack with real pattern-matched detection
-    real_tech_stack = _detect_tech_stack_from_html(content)
-    if real_tech_stack:
-        profile["tech_stack"] = real_tech_stack
-    else:
-        profile["tech_stack"] = []
+    bare = _bare_domain(domain)
 
-    # Real funding lookup via public press search — empty dict if nothing found
-    app = _firecrawl_client()
-    funding = _search_funding_news(app, profile["name"])
-    profile["_funding"] = funding
+    # Kick off the free, keyless signal calls in parallel with the main scrape/LLM
+    # pipeline below — they're independent and shouldn't add sequential latency.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        age_future = pool.submit(get_domain_age, domain)
+        speed_future = pool.submit(get_pagespeed_score, domain)
 
-    structural_signal = _get_structural_signal(profile, content)
-    size = profile.get("size") or _detect_company_size(content, profile.get("signals", ""))
-    metrics = _get_dynamic_metrics(size)
-    alerts = _generate_infrastructure_alerts(profile["name"], profile, metrics)
-    message = _generate_message(domain, profile, content)
-    score, score_num = _score_lead(profile)
-    readiness_index = min(65, max(30, score_num - 10))
+        url = _normalize_url(domain)
+        content = _scrape_domain(url)
+        profile = _analyze_profile(domain, content)
+
+        # Override LLM-guessed tech_stack with real pattern-matched detection
+        real_tech_stack = _detect_tech_stack_from_html(content)
+        profile["tech_stack"] = real_tech_stack or []
+
+        # Real funding lookup via public press search — empty dict if nothing found
+        app = _firecrawl_client()
+        funding = _search_funding_news(app, profile["name"])
+        profile["_funding"] = funding
+
+        structural_signal = _get_structural_signal(profile, content)
+        size = profile.get("size") or _detect_company_size(content, profile.get("signals", ""))
+        metrics = _get_dynamic_metrics(size)
+        alerts = _generate_infrastructure_alerts(profile["name"], profile, metrics)
+        message = _generate_message(domain, profile, content)
+        score, score_num = _score_lead(profile)
+        readiness_index = min(65, max(30, score_num - 10))
+
+        domain_age = age_future.result(timeout=EXTERNAL_TIMEOUT + 1) if age_future else {}
+        pagespeed = speed_future.result(timeout=EXTERNAL_TIMEOUT + 1) if speed_future else {}
 
     return {
         "domain": domain.strip(),
@@ -518,4 +583,7 @@ def _run_scout_uncached(domain: str) -> dict[str, Any]:
         "metrics": metrics,
         "readiness_index": readiness_index,
         "funding": funding,
+        "logo_url": get_logo_url(domain),
+        "domain_age": domain_age,
+        "pagespeed": pagespeed,
     }
