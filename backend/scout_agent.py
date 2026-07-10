@@ -124,6 +124,70 @@ def _scrape_domain(url: str) -> str:
     return "".join(pages)
 
 
+TECH_SIGNATURES: dict[str, tuple[str, ...]] = {
+    "HubSpot": ("hs-scripts.com", "hubspot.com/", "_hsq"),
+    "Salesforce": ("force.com", "salesforce.com/", "pardot.com"),
+    "Intercom": ("intercom.io", "widget.intercom"),
+    "Segment": ("cdn.segment.com", "segment.io"),
+    "Google Analytics": ("googletagmanager.com", "google-analytics.com"),
+    "Stripe": ("js.stripe.com", "stripe.com/v3"),
+    "Amplitude": ("amplitude.com", "cdn.amplitude"),
+    "Mixpanel": ("mixpanel.com",),
+    "Drift": ("drift.com",),
+    "Marketo": ("marketo.com", "mktoresp.com"),
+    "Zendesk": ("zdassets.com", "zendesk.com"),
+    "Clay": ("clay.com", "clay.run"),
+    "Apollo": ("apollo.io",),
+    "Calendly": ("calendly.com",),
+}
+
+
+def _detect_tech_stack_from_html(raw_content: str) -> list[str]:
+    """Real detection: scan scraped markdown/HTML for known vendor script domains.
+    No paid API — just pattern matching on content we already fetched."""
+    lower = raw_content.lower()
+    found = []
+    for tool, signatures in TECH_SIGNATURES.items():
+        if any(sig in lower for sig in signatures):
+            found.append(tool)
+    return found
+
+
+FUNDING_KEYWORDS = ("raises", "raised", "funding round", "series a", "series b",
+                    "series c", "seed round", "seed funding", "closes round")
+
+
+def _search_funding_news(app: "FirecrawlApp", company_name: str) -> dict[str, str]:
+    """Real funding lookup: search public press coverage via Firecrawl's search,
+    rather than inferring/guessing. Returns empty dict if nothing found — never fabricates."""
+    try:
+        results = app.search(f"{company_name} funding round raises million", limit=5)
+    except Exception:
+        return {}
+
+    items = []
+    if isinstance(results, dict):
+        items = results.get("data") or results.get("results") or []
+    elif isinstance(results, list):
+        items = results
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        title = (item.get("title") or "") + " " + (item.get("description") or "")
+        title_lower = title.lower()
+        if any(k in title_lower for k in FUNDING_KEYWORDS):
+            amount_match = re.search(r"\$[\d.]+\s?(million|billion|[mMbB])\b", title)
+            round_match = re.search(r"(seed|series [a-d])", title_lower)
+            return {
+                "source_title": title.strip()[:200],
+                "source_url": item.get("url", ""),
+                "amount": amount_match.group(0) if amount_match else "",
+                "round": round_match.group(0).title() if round_match else "",
+            }
+    return {}
+
+
 def _detect_company_size(content: str, signals: str) -> str:
     content_lower = content.lower()
     signals_lower = signals.lower()
@@ -198,6 +262,14 @@ def _generate_infrastructure_alerts(company_name: str, profile: dict[str, str], 
         alerts.append({
             "level": "warning",
             "text": f"Growth signal on record: {growth_indicators[0]}. No confirmation this is being acted on systematically.",
+        })
+
+    funding = profile.get("_funding") or {}
+    if funding.get("round") or funding.get("amount"):
+        parts = [p for p in (funding.get("round"), funding.get("amount")) if p]
+        alerts.append({
+            "level": "info",
+            "text": f"Public funding signal: {' '.join(parts)} (source: press coverage).",
         })
 
     gap = profile.get("biggest_gap", "")
@@ -415,6 +487,18 @@ def _run_scout_uncached(domain: str) -> dict[str, Any]:
     content = _scrape_domain(url)
     profile = _analyze_profile(domain, content)
 
+    # Override LLM-guessed tech_stack with real pattern-matched detection
+    real_tech_stack = _detect_tech_stack_from_html(content)
+    if real_tech_stack:
+        profile["tech_stack"] = real_tech_stack
+    else:
+        profile["tech_stack"] = []
+
+    # Real funding lookup via public press search — empty dict if nothing found
+    app = _firecrawl_client()
+    funding = _search_funding_news(app, profile["name"])
+    profile["_funding"] = funding
+
     structural_signal = _get_structural_signal(profile, content)
     size = profile.get("size") or _detect_company_size(content, profile.get("signals", ""))
     metrics = _get_dynamic_metrics(size)
@@ -433,4 +517,5 @@ def _run_scout_uncached(domain: str) -> dict[str, Any]:
         "infrastructure_alerts": alerts,
         "metrics": metrics,
         "readiness_index": readiness_index,
+        "funding": funding,
     }
