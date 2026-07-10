@@ -1,21 +1,39 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import type { DemoData } from "@/lib/demo-data";
+import type { ScoutResult } from "@/lib/scout";
 
 interface Props {
-  data: DemoData;
+  scoutData?: ScoutResult | null;
   onComplete: () => void;
 }
 
-export function WriterScreen({ data, onComplete }: Props) {
+export function WriterScreen({ scoutData, onComplete }: Props) {
+  const message = scoutData?.message ?? "";
   const [typed, setTyped] = useState("");
-  const [cost, setCost] = useState(0);
   const [done, setDone] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(data.message);
+  const [editValue, setEditValue] = useState(message);
   const [approved, setApproved] = useState(false);
-  const [showPause, setShowPause] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
+
+  const signals = scoutData?.profile?.signals ?? "";
+  const hiringRoles = scoutData?.profile?.hiring_roles ?? [];
+  const angle = scoutData?.profile?.angle ?? "";
+  const icp = scoutData?.profile?.icp ?? "";
+  const funding = scoutData?.funding;
+  const scoreNum = scoutData?.score_num ?? 0;
+  const score = scoutData?.score ?? "—";
+  const readiness = scoutData?.readiness_index ?? 0;
+  const structuralSignal = scoutData?.structural_signal ?? "";
+
+  const tags = [
+    funding?.round || funding?.amount
+      ? `${[funding.round, funding.amount].filter(Boolean).join(" ")} detected`
+      : null,
+    hiringRoles.length ? `Hiring ${hiringRoles[0]}` : null,
+    signals ? `Signal: ${signals}` : null,
+    icp ? `ICP: ${icp}` : null,
+  ].filter((t): t is string => Boolean(t));
 
   useEffect(() => {
     let i = 0;
@@ -23,39 +41,26 @@ export function WriterScreen({ data, onComplete }: Props) {
     setDone(false);
     setApproved(false);
     setEditing(false);
-    setShowPause(false);
     setShowButtons(false);
-    setEditValue(data.message);
-    setCost(0);
+    setEditValue(message);
+
+    if (!message) {
+      setDone(true);
+      return;
+    }
 
     const typeInt = window.setInterval(() => {
       i++;
-      setTyped(data.message.slice(0, i));
-      if (i >= data.message.length) {
+      setTyped(message.slice(0, i));
+      if (i >= message.length) {
         window.clearInterval(typeInt);
         setDone(true);
-        // Fix 2 — pausa dramática 3s antes de mostrar botões
-        window.setTimeout(() => setShowPause(true), 400);
-        window.setTimeout(() => setShowButtons(true), 3400);
+        window.setTimeout(() => setShowButtons(true), 900);
       }
     }, 22);
 
-    const costInt = window.setInterval(() => {
-      setCost((c) => {
-        const next = c + 0.00025;
-        if (next >= 0.003) {
-          window.clearInterval(costInt);
-          return 0.003;
-        }
-        return next;
-      });
-    }, 70);
-
-    return () => {
-      window.clearInterval(typeInt);
-      window.clearInterval(costInt);
-    };
-  }, [data]);
+    return () => window.clearInterval(typeInt);
+  }, [message]);
 
   const wordCount = (typed.trim().match(/\S+/g) || []).length;
 
@@ -69,10 +74,10 @@ export function WriterScreen({ data, onComplete }: Props) {
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-signal">
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-signal" />
-          GTM · INTERVENTION ORCHESTRATOR
+          REAL SIGNAL · MESSAGE FROM LIVE SCAN
         </div>
         <div className="font-mono text-[11px] text-muted-foreground">
-          model: gpt-class · temp 0.4
+          source: Groq (LLaMA 3.3 70B)
         </div>
       </div>
 
@@ -82,27 +87,28 @@ export function WriterScreen({ data, onComplete }: Props) {
           <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
             Scout intelligence
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              `${data.fundingRound} detected`,
-              `Hiring ${data.hiringRole}`,
-              `CEO: ${data.ceoQuote}`,
-              `Industry: ${data.industry}`,
-            ].map((s) => (
-              <span
-                key={s}
-                className="inline-flex items-center gap-1.5 rounded-md border border-signal/20 bg-signal-soft px-2.5 py-1 font-mono text-[11px] text-signal"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-signal" />
-                {s}
-              </span>
-            ))}
-          </div>
+          {tags.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-signal/20 bg-signal-soft px-2.5 py-1 font-mono text-[11px] text-signal"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-signal" />
+                  {s}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="font-mono text-[11px] text-muted-foreground">
+              No explicit hiring/funding signal found on the scanned pages.
+            </div>
+          )}
 
           <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-border/60 pt-4 font-mono text-[11px]">
-            <Metric label="ICP" value={`${data.icpScore}/100`} good />
-            <Metric label="Buy Signal" value={data.buySignal} good />
-            <Metric label="Priority" value={data.priority} warn />
+            <Metric label="Fit Score" value={`${scoreNum}/100`} good />
+            <Metric label="Signal" value={score} good={score === "HOT"} warn={score === "COLD"} />
+            <Metric label="Readiness" value={`${readiness}`} warn />
           </dl>
 
           <div className="mt-5 rounded-lg border border-border/60 bg-panel/50 p-3">
@@ -110,12 +116,21 @@ export function WriterScreen({ data, onComplete }: Props) {
               Reasoning trace
             </div>
             <ul className="space-y-1 font-mono text-[11.5px] text-foreground/80">
-              {data.reasoning.slice(0, 4).map((r) => (
-                <li key={r} className="flex gap-2">
+              {structuralSignal && (
+                <li className="flex gap-2">
                   <span className="text-mind">›</span>
-                  {r}
+                  {structuralSignal}
                 </li>
-              ))}
+              )}
+              {angle && (
+                <li className="flex gap-2">
+                  <span className="text-mind">›</span>
+                  {angle}
+                </li>
+              )}
+              {!structuralSignal && !angle && (
+                <li className="text-muted-foreground">No further reasoning available from this scan.</li>
+              )}
             </ul>
           </div>
         </div>
@@ -144,52 +159,18 @@ export function WriterScreen({ data, onComplete }: Props) {
             />
           ) : (
             <div className="min-h-[180px] whitespace-pre-wrap font-display text-[15px] leading-relaxed text-foreground">
-              {(editing ? editValue : typed) || "\u00A0"}
+              {(editing ? editValue : typed) || (message ? "\u00A0" : "No message generated — scan returned no usable signal.")}
               {!done && !editing && (
                 <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-caret bg-signal align-middle" />
               )}
             </div>
           )}
 
-          {/* Cost line */}
           <div className="mt-3 text-right font-mono text-[11px] text-muted-foreground">
-            {done
-              ? `Cost: $${cost.toFixed(4)} · Human score: 94% · Tone: warm-direct`
-              : `Cost: $${cost.toFixed(4)} · generating…`}
+            {done ? "Generated from real scan content" : "generating…"}
           </div>
 
-          {/* Fix 2 — pausa dramática: comparação SDR vs AXON */}
-          {showPause && !approved && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="mt-4 rounded-lg border px-4 py-3"
-              style={{ borderColor: "rgba(240,160,64,0.3)", background: "rgba(240,160,64,0.05)" }}
-            >
-              <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: "#f0a040" }}>
-                ◆ infrastructure vs headcount
-              </div>
-              <div className="grid grid-cols-2 gap-3 font-mono text-[11px]">
-                <div>
-                  <div style={{ color: "#4a4845" }}>Human SDR to do this:</div>
-                  <div className="mt-1 font-bold" style={{ color: "rgba(240,88,112,0.9)" }}>4 days · $400 cost</div>
-                  <div style={{ color: "#4a4845" }}>research + write + send</div>
-                </div>
-                <div>
-                  <div style={{ color: "#4a4845" }}>AXON to do this:</div>
-                  <div className="mt-1 font-bold text-signal">2s · $0.003 cost</div>
-                  <div style={{ color: "#4a4845" }}>signal → message → sent</div>
-                </div>
-              </div>
-              <div className="mt-2 font-mono text-[10px]" style={{ color: "#4a4845" }}>
-                At scale: 847 accounts × $400 SDR cost = <span style={{ color: "rgba(240,88,112,0.9)" }}>$338,800</span> vs AXON: <span className="text-signal">$2.54</span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Botões — aparecem após pausa de 3s */}
-          {done && showButtons && !approved && (
+          {done && showButtons && !approved && message && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
