@@ -212,9 +212,56 @@ FUNDING_KEYWORDS = ("raises", "raised", "funding round", "series a", "series b",
                     "series c", "seed round", "seed funding", "closes round")
 
 
+def _search_funding_news_tavily(company_name: str) -> dict[str, str]:
+    """Real funding lookup via Tavily — built for LLM agents, generally more reliable
+    news coverage than raw Firecrawl search. Returns empty dict if no key set,
+    no results, or on any failure — never fabricates."""
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        return {}
+    try:
+        with httpx.Client(timeout=EXTERNAL_TIMEOUT) as client:
+            resp = client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": api_key,
+                    "query": f"{company_name} funding round raises million",
+                    "max_results": 5,
+                    "search_depth": "basic",
+                },
+            )
+        if resp.status_code != 200:
+            return {}
+        results = resp.json().get("results", [])
+    except Exception:
+        return {}
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        title = (item.get("title") or "") + " " + (item.get("content") or "")
+        title_lower = title.lower()
+        if any(k in title_lower for k in FUNDING_KEYWORDS):
+            amount_match = re.search(r"\$[\d.]+\s?(million|billion|[mMbB])\b", title)
+            round_match = re.search(r"(seed|series [a-d])", title_lower)
+            return {
+                "source_title": title.strip()[:200],
+                "source_url": item.get("url", ""),
+                "amount": amount_match.group(0) if amount_match else "",
+                "round": round_match.group(0).title() if round_match else "",
+                "source": "tavily",
+            }
+    return {}
+
+
 def _search_funding_news(app: "FirecrawlApp", company_name: str) -> dict[str, str]:
-    """Real funding lookup: search public press coverage via Firecrawl's search,
-    rather than inferring/guessing. Returns empty dict if nothing found — never fabricates."""
+    """Real funding lookup: tries Tavily first (better news coverage), falls back
+    to Firecrawl search if Tavily has no key or no result. Never fabricates —
+    empty dict means genuinely nothing found."""
+    tavily_result = _search_funding_news_tavily(company_name)
+    if tavily_result:
+        return tavily_result
+
     try:
         results = app.search(f"{company_name} funding round raises million", limit=5)
     except Exception:
@@ -239,6 +286,7 @@ def _search_funding_news(app: "FirecrawlApp", company_name: str) -> dict[str, st
                 "source_url": item.get("url", ""),
                 "amount": amount_match.group(0) if amount_match else "",
                 "round": round_match.group(0).title() if round_match else "",
+                "source": "firecrawl",
             }
     return {}
 
