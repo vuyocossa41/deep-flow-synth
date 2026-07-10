@@ -28,6 +28,9 @@ export interface ScoutResult {
   metrics?: { humans: string; hours: string; multiplier: string };
   readiness_index?: number;
   funding?: ScoutFunding;
+  logo_url?: string;
+  domain_age?: { registered?: string; age_years?: number };
+  pagespeed?: { performance_score?: number };
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
