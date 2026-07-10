@@ -1,13 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { generateDemoData, generateDemoDataFromScout } from "@/lib/demo-data";
+import { useCallback, useEffect, useState } from "react";
 import { runScout, type ScoutResult } from "@/lib/scout";
 import { ActivationOverlay } from "./ActivationOverlay";
 import { AgentRail } from "./AgentRail";
 import { ExecutiveBriefing } from "./ExecutiveBriefing";
 import { MouseLight } from "./MouseLight";
 import { QualificationGate, type GateData } from "./QualificationGate";
-import { SignalFeed } from "./SignalFeed";
 import { SystemActivityLayer } from "./SystemActivityLayer";
 import { ChaosScreen } from "./screens/ChaosScreen";
 import { DecisionScreen } from "./screens/DecisionScreen";
@@ -33,10 +31,10 @@ const SCREEN_SUBTITLES = [
   null,
   "See the 4 infrastructure layers",
   "See what AXON found about your company",
-  "Live signals being processed now",
+  "Real signals being processed now",
   "AI drafting outreach from real signals",
-  "Revenue infrastructure modelled",
-  "Decisions ranked by impact · ready to act",
+  "Real signal · financial view",
+  "Decisions ranked by real signal",
   "Your infrastructure is ready to deploy",
 ];
 
@@ -53,30 +51,30 @@ const ACTIVE_AGENTS: Record<number, string[]> = {
 
 const AGENT_TASKS: Record<number, Record<string, string>> = {
   3: {
-    signal: "indexing public signal footprint",
-    icp: "mapping ICP acquisition signature",
-    market: "scanning category topology",
-    strategy: "compiling intelligence layer",
+    signal: "scanning scraped page content",
+    icp: "matching ICP from real profile",
+    market: "checking public press for funding",
+    strategy: "compiling real signal summary",
   },
   4: {
-    signal: "querying funding signals · 7d",
-    icp: "scoring acquisition fit · 847 accounts",
+    signal: "searching public funding news",
+    icp: "scoring fit from real profile",
   },
   5: {
-    campaign: "drafting signal-based openers",
-    signal: "checking trigger freshness",
+    campaign: "drafting message from real signal",
+    signal: "checking signal freshness",
   },
   6: {
-    revenue: "modelling MRR infrastructure",
-    market: "benchmarking ACV signal band",
+    revenue: "reading real infrastructure alerts",
+    market: "reading detected tech stack",
   },
   7: {
-    strategy: "ranking next-best revenue moves",
-    revenue: "simulating CAC infrastructure payback",
-    campaign: "sequencing autonomous send waves",
+    strategy: "ranking real alerts by severity",
+    revenue: "reviewing real fit score",
+    campaign: "preparing outreach draft",
   },
   8: {
-    strategy: "logging infrastructure payoff to memory",
+    strategy: "session complete",
   },
 };
 
@@ -93,10 +91,7 @@ export function DemoShell() {
   const [scoutData, setScoutData] = useState<ScoutResult | null>(null);
   const [isLoadingScout, setIsLoadingScout] = useState(false);
 
-  const data = useMemo(() => {
-    if (scoutData) return generateDemoDataFromScout(scoutData);
-    return generateDemoData(company || "Acme");
-  }, [company, scoutData]);
+  const [scoutError, setScoutError] = useState<string | null>(null);
 
   const go = useCallback((n: number) => {
     setScreen(Math.max(1, Math.min(TOTAL, n)));
@@ -110,6 +105,7 @@ export function DemoShell() {
     setActivating(false);
     setScoutData(null);
     setIsLoadingScout(false);
+    setScoutError(null);
   }, []);
 
   useEffect(() => {
@@ -139,9 +135,10 @@ export function DemoShell() {
     setActivating(true);
     setIsLoadingScout(true);
     setScoutData(null);
+    setScoutError(null);
     runScout(company)
       .then((res) => setScoutData(res))
-      .catch(() => setScoutData(null))
+      .catch((err) => setScoutError(err instanceof Error ? err.message : "Scan failed"))
       .finally(() => setIsLoadingScout(false));
   }, [company]);
 
@@ -163,14 +160,21 @@ export function DemoShell() {
       company={company}
       isLoading={isLoadingScout}
       scoutData={scoutData}
-      error={null}
+      error={scoutError}
       onContinue={() => go(4)}
     />,
-    <ScoutScreen key="4" data={data} onComplete={() => go(5)} />,
-    <WriterScreen key="5" data={data} onComplete={() => go(6)} />,
-    <FinanceScreen key="6" data={data} scoutData={scoutData} onComplete={() => go(7)} />,
-    <DecisionScreen key="7" data={data} scoutData={scoutData} onComplete={() => go(8)} />,
-    <NumbersScreen key="8" data={data} scoutData={scoutData} onRestart={restart} />,
+    <ScoutScreen
+      key="4"
+      company={company}
+      scoutData={scoutData}
+      isLoading={isLoadingScout}
+      error={scoutError}
+      onComplete={() => go(5)}
+    />,
+    <WriterScreen key="5" scoutData={scoutData} onComplete={() => go(6)} />,
+    <FinanceScreen key="6" scoutData={scoutData} onComplete={() => go(7)} />,
+    <DecisionScreen key="7" scoutData={scoutData} onComplete={() => go(8)} />,
+    <NumbersScreen key="8" company={company} scoutData={scoutData} onRestart={restart} />,
   ];
 
   const showOps = phase === "demo" && screen > 2 && screen < TOTAL;
@@ -188,8 +192,7 @@ export function DemoShell() {
           tasks={AGENT_TASKS[screen] ?? {}}
         />
       )}
-      {showOps && <SignalFeed />}
-      {showOps && screen > 3 && <ExecutiveBriefing data={data} />}
+      {showOps && screen > 3 && <ExecutiveBriefing scoutData={scoutData} />}
 
       <header className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4">
         <button onClick={restart} className="flex items-center gap-2 font-display text-[15px] font-bold tracking-tight">
