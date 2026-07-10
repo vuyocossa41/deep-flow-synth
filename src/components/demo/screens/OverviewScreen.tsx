@@ -90,6 +90,44 @@ export function OverviewScreen({ company, scoutData, onContinue }: Props) {
           {"AXON deploys as a permanent intelligence layer inside " + name + " infrastructure. Four components working autonomously so you spend 2h/week reviewing decisions, not executing them."}
         </motion.p>
 
+        {scoutData && (scoutData.logo_url || scoutData.domain_age?.age_years || scoutData.pagespeed?.performance_score) && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border px-4 py-3"
+            style={{ borderColor: "rgba(200,240,96,0.2)", background: "rgba(200,240,96,0.03)" }}
+          >
+            {scoutData.logo_url && (
+              <img
+                src={scoutData.logo_url}
+                alt={`${name} logo`}
+                className="h-9 w-9 rounded-md object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
+            <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-[11px]">
+              {scoutData.domain_age?.age_years != null && (
+                <div>
+                  <span style={{ color: "#4a4845" }}>{"Domain age: "}</span>
+                  <span style={{ color: "#dedad4" }}>{scoutData.domain_age.age_years} years</span>
+                </div>
+              )}
+              {scoutData.pagespeed?.performance_score != null && (
+                <div>
+                  <span style={{ color: "#4a4845" }}>{"Mobile performance: "}</span>
+                  <span style={{ color: scoutData.pagespeed.performance_score >= 70 ? "#c8f060" : scoutData.pagespeed.performance_score >= 40 ? "#f0a040" : "#f05870" }}>
+                    {scoutData.pagespeed.performance_score}/100
+                  </span>
+                </div>
+              )}
+              <div className="font-mono text-[10px]" style={{ color: "#4a4845" }}>
+                source: Clearbit · RDAP · Google PageSpeed
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {scoutData && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.5 }} className="mb-8 rounded-lg border px-4 py-3" style={{ borderColor: "rgba(240,160,64,0.3)", background: "rgba(240,160,64,0.05)" }}>
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-2" style={{ color: "#f0a040" }}>
