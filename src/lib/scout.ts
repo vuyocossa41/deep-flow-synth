@@ -7,6 +7,14 @@ export interface ScoutProfile {
   pain: string;
   angle: string;
   size?: string; biggest_gap?: string; sales_motion?: string; revenue_model?: string; hiring_roles?: string[]; growth_indicators?: string[]; axon_fit?: number; intervention_urgency?: string; ceo_name?: string; employee_count?: string; founded_year?: string;
+  tech_stack?: string[];
+}
+
+export interface ScoutFunding {
+  source_title?: string;
+  source_url?: string;
+  amount?: string;
+  round?: string;
 }
 
 export interface ScoutResult {
@@ -19,6 +27,7 @@ export interface ScoutResult {
   infrastructure_alerts?: { level: string; text: string }[];
   metrics?: { humans: string; hours: string; multiplier: string };
   readiness_index?: number;
+  funding?: ScoutFunding;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
