@@ -1,16 +1,15 @@
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
-import type { DemoData } from "@/lib/demo-data";
 import type { ScoutResult } from "@/lib/scout";
 
 interface Props {
-  data: DemoData;
-  scoutData?: import("@/lib/scout").ScoutResult | null;
+  company: string;
+  scoutData?: ScoutResult | null;
   onRestart: () => void;
 }
 
-export function NumbersScreen({ data, scoutData, onRestart }: Props) {
+export function NumbersScreen({ company, scoutData, onRestart }: Props) {
   const [step, setStep] = useState(0);
   const [sdrs, setSdrs] = useState(1);
   const [agencyK, setAgencyK] = useState(3);
@@ -40,7 +39,7 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
     const seq = [300, 650, 1000, 1350, 1700, 2050, 2400, 2750, 3100, 3450, 3800, 4100];
     const timers = seq.map((d, i) => window.setTimeout(() => setStep(i + 1), d));
     const counterTimer = window.setTimeout(() => {
-      animate(counter, data.annualSaving, { duration: 1.8, ease: [0.22, 1, 0.36, 1] });
+      animate(counter, saving, { duration: 1.8, ease: [0.22, 1, 0.36, 1] });
     }, 4600);
     const calcTimer = window.setTimeout(() => setCalcVisible(true), 5600);
     return () => {
@@ -48,7 +47,7 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
       window.clearTimeout(counterTimer);
       window.clearTimeout(calcTimer);
     };
-  }, [counter, data.annualSaving]);
+  }, [counter, saving]);
 
   const lines: {
     type: "p" | "big" | "sep" | "good" | "bad" | "amber" | "label" | "delta";
@@ -69,11 +68,8 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
     { type: "amber", text: `It's whether you can afford another year without it.` },
   ];
 
-  const recoveredPipeline = data.churnClients.reduce((a, c) => a + c.mrr, 0) * 12;
-  const flatTrend = data.mrrTrend.slice(0, 12).map((v) => ({ v }));
-  const liftTrend = data.mrrTrend.map((v, i) => ({
-    v: v + (i / data.mrrTrend.length) * v * 0.7,
-  }));
+  const flatTrend: { v: number }[] = [];
+  const liftTrend: { v: number }[] = [];
 
   return (
     <div className="relative mx-auto flex min-h-svh max-w-2xl flex-col items-center justify-center px-4 py-24 text-center">
@@ -162,10 +158,10 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
           <div className="mt-8 grid grid-cols-2 gap-3 text-left">
             <div className="glass rounded-xl p-3">
               <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                Without AXON · MRR flat
+                Without infrastructure · illustrative
               </div>
               <div className="font-mono text-sm font-bold text-muted-foreground">
-                ${data.mrr.toLocaleString()}
+                Flat, unpredictable pipeline
               </div>
               <div className="h-12">
                 <ResponsiveContainer width="100%" height="100%">
@@ -183,10 +179,10 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
             </div>
             <div className="glass-strong rounded-xl p-3 ring-signal">
               <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-signal">
-                With AXON · MRR forecast
+                With AXON · illustrative
               </div>
               <div className="font-mono text-sm font-bold text-signal">
-                ${Math.round(data.mrr * 1.7).toLocaleString()}
+                Compounding, signal-driven pipeline
               </div>
               <div className="h-12">
                 <ResponsiveContainer width="100%" height="100%">
@@ -205,8 +201,10 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
           </div>
 
           <div className="mt-3 font-mono text-[11px] text-muted-foreground">
-            + ${recoveredPipeline.toLocaleString()} pipeline recovered ·{" "}
-            <span className="text-signal">{data.icpScore}% signal confidence</span>
+            Illustrative example, not derived from {company || "your"} actual financials ·{" "}
+            {scoutData?.score_num != null && (
+              <span className="text-signal">{scoutData.score_num}% real fit score</span>
+            )}
           </div>
 
           {/* ROI Calculator */}
@@ -404,4 +402,3 @@ export function NumbersScreen({ data, scoutData, onRestart }: Props) {
     </div>
   );
 }
-
