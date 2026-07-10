@@ -1,30 +1,31 @@
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { useEffect, useState } from "react";
-import type { DemoData } from "@/lib/demo-data";
+import type { ScoutResult } from "@/lib/scout";
 
 interface Props {
-  data: DemoData;
+  scoutData?: ScoutResult | null;
 }
 
 /**
- * A persistent thin "command-center" strip with the executive-level KPIs.
- * Designed to be tucked under the header on flow screens.
+ * A persistent thin "command-center" strip showing only real signal
+ * derived from the actual backend scan — no fabricated KPIs.
  */
-export function ExecutiveBriefing({ data }: Props) {
-  const pipeline = 40000 + (data.icpScore % 12) * 1000;
-  const cacDelta = 18 + (data.icpScore % 22);
-  const meetings = 6 + (data.icpScore % 8);
-  const momentum = 60 + (data.icpScore % 35);
+export function ExecutiveBriefing({ scoutData }: Props) {
+  const fit = scoutData?.score_num ?? null;
+  const readiness = scoutData?.readiness_index ?? null;
+  const techCount = scoutData?.profile?.tech_stack?.length ?? 0;
+  const alertCount = scoutData?.infrastructure_alerts?.length ?? 0;
+  const fundingFound = Boolean(scoutData?.funding?.round || scoutData?.funding?.amount);
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-12 z-30 mx-auto hidden max-w-[1200px] px-4 md:block">
       <div className="glass flex items-stretch divide-x divide-border/40 rounded-lg px-1 py-1 font-mono text-[10px] uppercase tracking-[0.12em]">
-        <Cell label="Pipeline gen." value={`$${pipeline.toLocaleString()}`} tone="text-signal" trail="+24% w/w" />
-        <Cell label="CAC ↓" value={`-${cacDelta}%`} tone="text-signal" trail="last 30d" />
-        <Cell label="Meetings" value={`${meetings}/wk`} tone="text-foreground" trail="auto-booked" />
-        <Cell label="Signal conf." value={`${data.icpScore}%`} tone="text-info" trail="rising" />
-        <Cell label="Market momentum" value={`${momentum}`} tone="text-mind" trail="strong" />
-        <Cell label="Opportunities" value={`${3 + (data.icpScore % 5)}`} tone="text-warn" trail="ready" />
+        <Cell label="Fit score" value={fit != null ? `${fit}/100` : "—"} tone="text-signal" trail="from real scan" />
+        <Cell label="Readiness" value={readiness != null ? `${readiness}` : "—"} tone="text-info" trail="derived" />
+        <Cell label="Signal" value={scoutData?.score ?? "—"} tone="text-foreground" trail="real classification" />
+        <Cell label="Tech detected" value={`${techCount}`} tone="text-mind" trail="pattern-matched" />
+        <Cell label="Alerts" value={`${alertCount}`} tone="text-warn" trail="grounded in content" />
+        <Cell label="Funding" value={fundingFound ? "found" : "none"} tone={fundingFound ? "text-signal" : "text-muted-foreground"} trail="public press" />
       </div>
     </div>
   );
@@ -41,25 +42,18 @@ function Cell({
   tone: string;
   trail: string;
 }) {
-  // count-up for numeric values that start with $ or end with %
   const num = parseFloat(value.replace(/[^\d.]/g, ""));
+  const isNumeric = Number.isFinite(num) && /^\d/.test(value);
   const mv = useMotionValue(0);
   const [shown, setShown] = useState(value);
-  const prefix = value.startsWith("$") ? "$" : "";
-  const suffix = value.endsWith("%")
-    ? "%"
-    : value.endsWith("/wk")
-      ? "/wk"
-      : "";
 
   const formatted = useTransform(mv, (v) => {
-    if (!Number.isFinite(num)) return value;
-    const n = Math.round(v);
-    return `${prefix}${n.toLocaleString()}${suffix}`;
+    if (!isNumeric) return value;
+    return `${Math.round(v).toLocaleString()}${value.replace(/^[\d.]+/, "")}`;
   });
 
   useEffect(() => {
-    if (!Number.isFinite(num)) {
+    if (!isNumeric) {
       setShown(value);
       return;
     }
@@ -69,7 +63,8 @@ function Cell({
       controls.stop();
       unsub();
     };
-  }, [num, value, mv, formatted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [num, value, isNumeric]);
 
   return (
     <motion.div
