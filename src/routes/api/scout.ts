@@ -1,18 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
-import { runScout, type ScoutEnv } from "@/lib/scout-api/orchestrator";
+import { runScout } from "@/lib/scout-api/orchestrator";
 
-// In-memory rate limit — best-effort per warm isolate, same spirit as the
-// Python slowapi limiter (5/minute per IP). Cloudflare isolates can spin up
-// fresh under load, so this doesn't guarantee a hard global cap, but it
-// absorbs the common case: one visitor/bot hammering the endpoint.
 const RATE_LIMIT = 5;
-const RATE_WINDOW_MS = 60_000;
-const hits = new Map<string, number[]>();
+const RATE_WINDOW_MS = 60000;
+const hits = new Map();
 
-function isRateLimited(ip: string): boolean {
+function isRateLimited(ip) {
   const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  const recent = (hits.get(ip) ?? []).filter(function(t) { return now - t < RATE_WINDOW_MS; });
   recent.push(now);
   hits.set(ip, recent);
   return recent.length > RATE_LIMIT;
@@ -21,19 +17,20 @@ function isRateLimited(ip: string): boolean {
 export const Route = createFileRoute("/api/scout")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async function() {
         return Response.json({ status: "AXON online" });
       },
-      POST: async ({ request }) => {
+      POST: async function(ctx) {
+        const request = ctx.request;
         const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
         if (isRateLimited(ip)) {
-          return Response.json({ detail: "Rate limit exceeded — try again in a minute." }, { status: 429 });
+          return Response.json({ detail: "Rate limit exceeded, try again in a minute." }, { status: 429 });
         }
 
-        let domain: string;
+        let domain;
         try {
           const body = await request.json();
-          domain = String((body as { domain?: unknown })?.domain ?? "").trim();
+          domain = String((body && body.domain) ?? "").trim();
         } catch {
           return Response.json({ detail: "Invalid request body" }, { status: 400 });
         }
@@ -43,13 +40,12 @@ export const Route = createFileRoute("/api/scout")({
         }
 
         try {
-          const scoutEnv = env as unknown as ScoutEnv;
-          const result = await runScout(scoutEnv, domain);
+          const result = await runScout(env, domain);
           return Response.json(result);
         } catch (error) {
           console.error(error);
           const detail = error instanceof Error ? error.message : "Scout failed";
-          return Response.json({ detail }, { status: 500 });
+          return Response.json({ detail: detail }, { status: 500 });
         }
       },
     },

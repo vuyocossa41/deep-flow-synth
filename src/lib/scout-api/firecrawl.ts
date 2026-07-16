@@ -1,19 +1,15 @@
-// Firecrawl integration — direct TS port of backend/scout_agent.py's
-// _scrape_domain, _discover_priority_urls, _search_funding_news.
-// Uses Firecrawl's REST API directly via fetch (no SDK needed in Workers).
-
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v1";
 const SCRAPE_TIMEOUT_MS = 20000;
-const PRIORITY_PATH_KEYWORDS = ["career", "jobs", "about", "team", "pricing"] as const;
+const PRIORITY_PATH_KEYWORDS = ["career", "jobs", "about", "team", "pricing"];
 const MAX_PAGES_TOTAL = 4;
 const MAX_CHARS_PER_PAGE = 6000;
 
 export const FUNDING_KEYWORDS = [
   "raises", "raised", "funding round", "series a", "series b",
   "series c", "seed round", "seed funding", "closes round",
-] as const;
+];
 
-function normalizeUrl(domain: string): string {
+function normalizeUrl(domain) {
   let d = domain.trim();
   if (!d) throw new Error("Domain cannot be empty");
   if (!/^https?:\/\//.test(d)) d = `https://${d}`;
@@ -22,7 +18,7 @@ function normalizeUrl(domain: string): string {
   return d;
 }
 
-async function firecrawlPost(apiKey: string, path: string, body: unknown): Promise<any | null> {
+async function firecrawlPost(apiKey, path, body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SCRAPE_TIMEOUT_MS);
   try {
@@ -44,7 +40,7 @@ async function firecrawlPost(apiKey: string, path: string, body: unknown): Promi
   }
 }
 
-async function singlePageMarkdown(apiKey: string, url: string): Promise<string | null> {
+async function singlePageMarkdown(apiKey, url) {
   const result = await firecrawlPost(apiKey, "/scrape", { url, formats: ["markdown"] });
   if (!result) return null;
   if (result.success === false) return null;
@@ -54,15 +50,15 @@ async function singlePageMarkdown(apiKey: string, url: string): Promise<string |
   return null;
 }
 
-async function discoverPriorityUrls(apiKey: string, baseUrl: string): Promise<string[]> {
+async function discoverPriorityUrls(apiKey, baseUrl) {
   const mapped = await firecrawlPost(apiKey, "/map", { url: baseUrl });
   if (!mapped) return [];
-  let links: string[] = [];
+  let links = [];
   if (Array.isArray(mapped)) links = mapped;
   else links = mapped.links ?? mapped.data ?? [];
-  links = links.filter((l): l is string => typeof l === "string");
+  links = links.filter((l) => typeof l === "string");
 
-  const picked: string[] = [];
+  const picked = [];
   for (const keyword of PRIORITY_PATH_KEYWORDS) {
     const match = links.find((l) => l.toLowerCase().includes(keyword) && !picked.includes(l));
     if (match) picked.push(match);
@@ -71,11 +67,7 @@ async function discoverPriorityUrls(apiKey: string, baseUrl: string): Promise<st
   return picked;
 }
 
-/** Scrape homepage + up to 3 priority subpages (careers/about/pricing).
- * Falls back gracefully: partial failures still return whatever real content
- * we did get, rather than aborting the whole scan. Throws only if the
- * homepage itself is unreachable — nothing real to work with at that point. */
-export async function scrapeDomain(apiKey: string, domain: string): Promise<{ url: string; content: string }> {
+export async function scrapeDomain(apiKey, domain) {
   const url = normalizeUrl(domain);
   const homepageMd = await singlePageMarkdown(apiKey, url);
   if (!homepageMd) {
@@ -95,36 +87,26 @@ export async function scrapeDomain(apiKey: string, domain: string): Promise<{ ur
   return { url, content: pages.join("") };
 }
 
-export interface FundingResult {
-  source_title?: string;
-  source_url?: string;
-  amount?: string;
-  round?: string;
-  source?: "tavily" | "firecrawl";
-}
-
-function extractFundingFromText(title: string, source: "tavily" | "firecrawl"): FundingResult | null {
+function extractFundingFromText(title, source) {
   const titleLower = title.toLowerCase();
   if (!FUNDING_KEYWORDS.some((k) => titleLower.includes(k))) return null;
   const amountMatch = title.match(/\$[\d.]+\s?(million|billion|[mMbB])\b/);
   const roundMatch = titleLower.match(/(seed|series [a-d])/);
   return {
     source_title: title.trim().slice(0, 200),
-    amount: amountMatch?.[0] ?? "",
+    amount: amountMatch ? amountMatch[0] : "",
     round: roundMatch ? roundMatch[0].replace(/\b\w/g, (c) => c.toUpperCase()) : "",
     source,
   };
 }
 
-/** Firecrawl's /search endpoint as a fallback funding lookup when Tavily has
- * no key or no result. Never fabricates — empty object means nothing found. */
-export async function searchFundingNewsFirecrawl(apiKey: string, companyName: string): Promise<FundingResult> {
+export async function searchFundingNewsFirecrawl(apiKey, companyName) {
   const result = await firecrawlPost(apiKey, "/search", {
     query: `${companyName} funding round raises million`,
     limit: 5,
   });
   if (!result) return {};
-  const items: any[] = Array.isArray(result) ? result : result.data ?? result.results ?? [];
+  const items = Array.isArray(result) ? result : result.data ?? result.results ?? [];
 
   for (const item of items) {
     if (!item || typeof item !== "object") continue;

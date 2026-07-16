@@ -1,11 +1,6 @@
-// Free, keyless signal helpers — direct TS port of the Python versions in
-// backend/scout_agent.py (get_logo_url, get_domain_age, get_pagespeed_score,
-// _detect_tech_stack_from_html). Same behavior: never throw upward, always
-// return {} / [] on failure so the main scan never breaks because of these.
-
 const EXTERNAL_TIMEOUT_MS = 8000;
 
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response | null> {
+async function fetchWithTimeout(url, init) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), EXTERNAL_TIMEOUT_MS);
   try {
@@ -18,28 +13,23 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
   }
 }
 
-export function bareDomain(domain: string): string {
+export function bareDomain(domain) {
   let d = domain.trim().toLowerCase();
   d = d.replace(/^https?:\/\//, "");
   d = d.replace(/^www\./, "");
   return d.split("/")[0];
 }
 
-export function getLogoUrl(domain: string): string {
+export function getLogoUrl(domain) {
   return `https://logo.clearbit.com/${bareDomain(domain)}`;
 }
 
-export interface DomainAge {
-  registered?: string;
-  age_years?: number;
-}
-
-export async function getDomainAge(domain: string): Promise<DomainAge> {
+export async function getDomainAge(domain) {
   const bare = bareDomain(domain);
   const res = await fetchWithTimeout(`https://rdap.org/domain/${bare}`);
   if (!res || !res.ok) return {};
   try {
-    const data = (await res.json()) as { events?: { eventAction?: string; eventDate?: string }[] };
+    const data = await res.json();
     const events = data.events ?? [];
     const registered = events.find((e) => e.eventAction === "registration")?.eventDate;
     if (!registered) return {};
@@ -51,11 +41,7 @@ export async function getDomainAge(domain: string): Promise<DomainAge> {
   }
 }
 
-export interface PageSpeed {
-  performance_score?: number;
-}
-
-export async function getPagespeedScore(domain: string): Promise<PageSpeed> {
+export async function getPagespeedScore(domain) {
   const bare = bareDomain(domain);
   const params = new URLSearchParams({
     url: `https://${bare}`,
@@ -67,9 +53,7 @@ export async function getPagespeedScore(domain: string): Promise<PageSpeed> {
   );
   if (!res || !res.ok) return {};
   try {
-    const data = (await res.json()) as {
-      lighthouseResult?: { categories?: { performance?: { score?: number } } };
-    };
+    const data = await res.json();
     const score = data.lighthouseResult?.categories?.performance?.score;
     if (score == null) return {};
     return { performance_score: Math.round(score * 100) };
@@ -78,7 +62,7 @@ export async function getPagespeedScore(domain: string): Promise<PageSpeed> {
   }
 }
 
-const TECH_SIGNATURES: Record<string, readonly string[]> = {
+const TECH_SIGNATURES = {
   HubSpot: ["hs-scripts.com", "hubspot.com/", "_hsq"],
   Salesforce: ["force.com", "salesforce.com/", "pardot.com"],
   Intercom: ["intercom.io", "widget.intercom"],
@@ -95,9 +79,9 @@ const TECH_SIGNATURES: Record<string, readonly string[]> = {
   Calendly: ["calendly.com"],
 };
 
-export function detectTechStackFromHtml(rawContent: string): string[] {
+export function detectTechStackFromHtml(rawContent) {
   const lower = rawContent.toLowerCase();
-  const found: string[] = [];
+  const found = [];
   for (const [tool, signatures] of Object.entries(TECH_SIGNATURES)) {
     if (signatures.some((sig) => lower.includes(sig))) found.push(tool);
   }

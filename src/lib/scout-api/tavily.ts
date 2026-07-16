@@ -1,17 +1,15 @@
-// Tavily integration — direct TS port of _search_funding_news_tavily.
-// Tries Tavily first (built for LLM agents, generally better news coverage);
-// caller falls back to Firecrawl search if this returns {}.
-
-import { FUNDING_KEYWORDS, type FundingResult } from "./firecrawl";
-
 const EXTERNAL_TIMEOUT_MS = 8000;
+const FUNDING_KEYWORDS = [
+  "raises", "raised", "funding round", "series a", "series b",
+  "series c", "seed round", "seed funding", "closes round",
+];
 
-export async function searchFundingNewsTavily(apiKey: string | undefined, companyName: string): Promise<FundingResult> {
+export async function searchFundingNewsTavily(apiKey, companyName) {
   if (!apiKey) return {};
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), EXTERNAL_TIMEOUT_MS);
-  let results: any[] = [];
+  let results = [];
   try {
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
@@ -25,7 +23,7 @@ export async function searchFundingNewsTavily(apiKey: string | undefined, compan
       signal: controller.signal,
     });
     if (!res.ok) return {};
-    const data = (await res.json()) as { results?: any[] };
+    const data = await res.json();
     results = data.results ?? [];
   } catch {
     return {};
@@ -43,7 +41,7 @@ export async function searchFundingNewsTavily(apiKey: string | undefined, compan
     return {
       source_title: title.trim().slice(0, 200),
       source_url: item.url ?? "",
-      amount: amountMatch?.[0] ?? "",
+      amount: amountMatch ? amountMatch[0] : "",
       round: roundMatch ? roundMatch[0].replace(/\b\w/g, (c) => c.toUpperCase()) : "",
       source: "tavily",
     };
