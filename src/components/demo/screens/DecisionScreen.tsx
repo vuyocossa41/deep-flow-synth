@@ -89,7 +89,7 @@ export function DecisionScreen({ scoutData, onComplete }: Props) {
             <span style={{ color: "#dedad4" }}>Ready to run this on your full pipeline?</span>
           </div>
         </div>
-        
+          <a
           href="https://tally.so/r/kdkXGd"
           target="_blank"
           rel="noopener noreferrer"
@@ -198,7 +198,7 @@ export function DecisionScreen({ scoutData, onComplete }: Props) {
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
-                        
+                          <a
                           href="https://tally.so/r/kdkXGd"
                           target="_blank"
                           rel="noopener noreferrer"
@@ -230,7 +230,7 @@ export function DecisionScreen({ scoutData, onComplete }: Props) {
             Built for founders running $500k–$5M ARR
           </div>
         </div>
-        
+          <a
           href="https://tally.so/r/kdkXGd"
           target="_blank"
           rel="noopener noreferrer"

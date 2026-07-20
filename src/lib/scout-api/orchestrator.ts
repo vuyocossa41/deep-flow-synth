@@ -4,6 +4,15 @@ import { searchFundingNewsTavily } from "./tavily";
 import { analyzeProfile, generateMessage } from "./groq";
 import { detectCompanySize, getDynamicMetrics, getStructuralSignal, generateInfrastructureAlerts, scoreLead } from "./logic";
 
+const ENRICHMENT_GRACE_MS = 5000;
+
+function withGracePeriod(promise, graceMs) {
+  const fallback = new Promise(function(resolve) {
+    setTimeout(function() { resolve({}); }, graceMs);
+  });
+  return Promise.race([promise.catch(function() { return {}; }), fallback]);
+}
+
 async function searchFunding(env, companyName) {
   const tavilyResult = await searchFundingNewsTavily(env.TAVILY_API_KEY, companyName);
   if (tavilyResult.round || tavilyResult.amount || tavilyResult.source_title) return tavilyResult;
@@ -16,7 +25,8 @@ async function runScoutUncached(env, domain) {
   if (!env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
   if (!env.FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY is not set");
 
-  const ageAndSpeedPromise = Promise.all([getDomainAge(domain), getPagespeedScore(domain)]);
+  const domainAgePromise = getDomainAge(domain);
+  const pagespeedPromise = getPagespeedScore(domain);
 
   const scraped = await scrapeDomain(env.FIRECRAWL_API_KEY, domain);
   const content = scraped.content;
@@ -34,9 +44,8 @@ async function runScoutUncached(env, domain) {
   const scored = scoreLead(profile);
   const readinessIndex = Math.min(65, Math.max(30, scored.scoreNum - 10));
 
-  const ageAndSpeed = await ageAndSpeedPromise;
-  const domainAge = ageAndSpeed[0];
-  const pagespeed = ageAndSpeed[1];
+  const domainAge = await withGracePeriod(domainAgePromise, ENRICHMENT_GRACE_MS);
+  const pagespeed = await withGracePeriod(pagespeedPromise, ENRICHMENT_GRACE_MS);
 
   return {
     domain: domain.trim(),

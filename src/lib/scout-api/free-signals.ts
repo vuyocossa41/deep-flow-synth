@@ -1,12 +1,16 @@
-const EXTERNAL_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 8000;
+const RDAP_TIMEOUT_MS = 10000;
+const PAGESPEED_TIMEOUT_MS = 25000;
 
-async function fetchWithTimeout(url, init) {
+async function fetchWithTimeout(url, init, timeoutMs) {
+  const ms = timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), EXTERNAL_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), ms);
   try {
     const res = await fetch(url, { ...init, signal: controller.signal });
     return res;
-  } catch {
+  } catch (err) {
+    console.error("fetchWithTimeout failed for " + url + ": " + (err && err.message));
     return null;
   } finally {
     clearTimeout(timer);
@@ -26,17 +30,31 @@ export function getLogoUrl(domain) {
 
 export async function getDomainAge(domain) {
   const bare = bareDomain(domain);
-  const res = await fetchWithTimeout(`https://rdap.org/domain/${bare}`);
-  if (!res || !res.ok) return {};
+  const url = `https://rdap.org/domain/${bare}`;
+  console.log("[domain_age] fetching " + url);
+  const res = await fetchWithTimeout(url, undefined, RDAP_TIMEOUT_MS);
+  if (!res) {
+    console.error("[domain_age] fetch returned null (timeout or network error) for " + bare);
+    return {};
+  }
+  if (!res.ok) {
+    console.error("[domain_age] non-ok status " + res.status + " for " + bare);
+    return {};
+  }
   try {
     const data = await res.json();
     const events = data.events ?? [];
     const registered = events.find((e) => e.eventAction === "registration")?.eventDate;
-    if (!registered) return {};
+    if (!registered) {
+      console.error("[domain_age] no registration event found for " + bare + ", raw keys: " + Object.keys(data).join(","));
+      return {};
+    }
     const regDate = new Date(registered);
     const ageYears = Math.round(((Date.now() - regDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
+    console.log("[domain_age] success for " + bare + ": " + ageYears + " years");
     return { registered: registered.slice(0, 10), age_years: ageYears };
-  } catch {
+  } catch (err) {
+    console.error("[domain_age] JSON parse failed for " + bare + ": " + (err && err.message));
     return {};
   }
 }
@@ -48,16 +66,29 @@ export async function getPagespeedScore(domain) {
     strategy: "mobile",
     category: "performance",
   });
-  const res = await fetchWithTimeout(
-    `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`,
-  );
-  if (!res || !res.ok) return {};
+  const url = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`;
+  console.log("[pagespeed] fetching " + url);
+  const res = await fetchWithTimeout(url, undefined, PAGESPEED_TIMEOUT_MS);
+  if (!res) {
+    console.error("[pagespeed] fetch returned null (timeout or network error) for " + bare);
+    return {};
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("[pagespeed] non-ok status " + res.status + " for " + bare + ": " + body.slice(0, 300));
+    return {};
+  }
   try {
     const data = await res.json();
     const score = data.lighthouseResult?.categories?.performance?.score;
-    if (score == null) return {};
+    if (score == null) {
+      console.error("[pagespeed] no performance score in response for " + bare + ", raw keys: " + Object.keys(data).join(","));
+      return {};
+    }
+    console.log("[pagespeed] success for " + bare + ": " + Math.round(score * 100));
     return { performance_score: Math.round(score * 100) };
-  } catch {
+  } catch (err) {
+    console.error("[pagespeed] JSON parse failed for " + bare + ": " + (err && err.message));
     return {};
   }
 }
