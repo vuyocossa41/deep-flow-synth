@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Benchmark cloud scratch and secrets
+work/
+worker-configuration.d.ts

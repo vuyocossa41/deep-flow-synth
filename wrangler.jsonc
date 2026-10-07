@@ -2,6 +2,34 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "deep-flow-synth",
   "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "main": "src/server.ts",
+  "d1_databases": [
+    {
+      "binding": "BENCHMARK_DB",
+      "database_name": "axon-correction-benchmark",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "workflows": [
+    {
+      "binding": "BENCHMARK",
+      "name": "axon-correction-benchmark",
+      "class_name": "CorrectionWorkflow"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "vars": {
+    "BENCHMARK_ORIGIN": "http://localhost:8080",
+    "BENCHMARK_MODEL": "llama-3.3-70b-versatile",
+    "BENCHMARK_ACCESS_TEAM": "",
+    "BENCHMARK_ACCESS_AUD": ""
+  }
 }
