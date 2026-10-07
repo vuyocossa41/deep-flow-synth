@@ -9,6 +9,7 @@ Branch: correction-benchmark. Environment: Codespaces, Node 24.21.0.
 - Production Vite build: passed, final server build 5.84 seconds.
 - Critical serializer advisory: patched in lockfile, seroval 1.6.8.
 - Remaining dependency audit: 12 high, 1 moderate, 2 low, 0 critical.
+- Cloud workspace HTTP smoke checks: /benchmark 200, /submit 200; rendered CTA and contact-permission section confirmed.
 - No deployment or production migration performed.
 - Browser visual QA through private forwarded port was unavailable.
 
