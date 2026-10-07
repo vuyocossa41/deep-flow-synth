@@ -9,12 +9,42 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SubmitRouteImport } from './routes/submit'
+import { Route as BenchmarkRouteImport } from './routes/benchmark'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReviewIdRouteImport } from './routes/review.$id'
+import { Route as ResultIdRouteImport } from './routes/result.$id'
+import { Route as CaseIdRouteImport } from './routes/case.$id'
 import { Route as ApiScoutRouteImport } from './routes/api/scout'
 
+const SubmitRoute = SubmitRouteImport.update({
+  id: '/submit',
+  path: '/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BenchmarkRoute = BenchmarkRouteImport.update({
+  id: '/benchmark',
+  path: '/benchmark',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewIdRoute = ReviewIdRouteImport.update({
+  id: '/review/$id',
+  path: '/review/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResultIdRoute = ResultIdRouteImport.update({
+  id: '/result/$id',
+  path: '/result/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CaseIdRoute = CaseIdRouteImport.update({
+  id: '/case/$id',
+  path: '/case/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiScoutRoute = ApiScoutRouteImport.update({
@@ -25,37 +55,114 @@ const ApiScoutRoute = ApiScoutRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/benchmark': typeof BenchmarkRoute
+  '/submit': typeof SubmitRoute
   '/api/scout': typeof ApiScoutRoute
+  '/case/$id': typeof CaseIdRoute
+  '/result/$id': typeof ResultIdRoute
+  '/review/$id': typeof ReviewIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/benchmark': typeof BenchmarkRoute
+  '/submit': typeof SubmitRoute
   '/api/scout': typeof ApiScoutRoute
+  '/case/$id': typeof CaseIdRoute
+  '/result/$id': typeof ResultIdRoute
+  '/review/$id': typeof ReviewIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/benchmark': typeof BenchmarkRoute
+  '/submit': typeof SubmitRoute
   '/api/scout': typeof ApiScoutRoute
+  '/case/$id': typeof CaseIdRoute
+  '/result/$id': typeof ResultIdRoute
+  '/review/$id': typeof ReviewIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/scout'
+  fullPaths:
+    | '/'
+    | '/benchmark'
+    | '/submit'
+    | '/api/scout'
+    | '/case/$id'
+    | '/result/$id'
+    | '/review/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/scout'
-  id: '__root__' | '/' | '/api/scout'
+  to:
+    | '/'
+    | '/benchmark'
+    | '/submit'
+    | '/api/scout'
+    | '/case/$id'
+    | '/result/$id'
+    | '/review/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/benchmark'
+    | '/submit'
+    | '/api/scout'
+    | '/case/$id'
+    | '/result/$id'
+    | '/review/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BenchmarkRoute: typeof BenchmarkRoute
+  SubmitRoute: typeof SubmitRoute
   ApiScoutRoute: typeof ApiScoutRoute
+  CaseIdRoute: typeof CaseIdRoute
+  ResultIdRoute: typeof ResultIdRoute
+  ReviewIdRoute: typeof ReviewIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/submit': {
+      id: '/submit'
+      path: '/submit'
+      fullPath: '/submit'
+      preLoaderRoute: typeof SubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/benchmark': {
+      id: '/benchmark'
+      path: '/benchmark'
+      fullPath: '/benchmark'
+      preLoaderRoute: typeof BenchmarkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review/$id': {
+      id: '/review/$id'
+      path: '/review/$id'
+      fullPath: '/review/$id'
+      preLoaderRoute: typeof ReviewIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/result/$id': {
+      id: '/result/$id'
+      path: '/result/$id'
+      fullPath: '/result/$id'
+      preLoaderRoute: typeof ResultIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/case/$id': {
+      id: '/case/$id'
+      path: '/case/$id'
+      fullPath: '/case/$id'
+      preLoaderRoute: typeof CaseIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/scout': {
@@ -70,7 +177,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BenchmarkRoute: BenchmarkRoute,
+  SubmitRoute: SubmitRoute,
   ApiScoutRoute: ApiScoutRoute,
+  CaseIdRoute: CaseIdRoute,
+  ResultIdRoute: ResultIdRoute,
+  ReviewIdRoute: ReviewIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

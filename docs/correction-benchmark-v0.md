@@ -12,21 +12,21 @@ The original home experience uses demo/simulated state; it is not a persisted co
 
 ## Pages and API
 
-| Page | Purpose |
-| --- | --- |
-| /benchmark | Explain benchmark and three adversarial scenarios |
-| /submit | Structured redacted intake and separate work-email consent |
-| /case/:id#key=CAPABILITY | Private status and approved-result link |
-| /result/:id#key=CAPABILITY | Human-approved Correction Map |
-| /review/:id?run=RUN_ID | Single-case Cloudflare Access review |
+| Page                       | Purpose                                                    |
+| -------------------------- | ---------------------------------------------------------- |
+| /benchmark                 | Explain benchmark and three adversarial scenarios          |
+| /submit                    | Structured redacted intake and separate work-email consent |
+| /case/:id#key=CAPABILITY   | Private status and approved-result link                    |
+| /result/:id#key=CAPABILITY | Human-approved Correction Map                              |
+| /review/:id?run=RUN_ID     | Single-case Cloudflare Access review                       |
 
-| API | Authorization and behavior |
-| --- | --- |
-| POST /api/benchmark/submissions | Same origin; strict JSON; stable random Idempotency-Key; returns 202 with caseId, runId, signed caseKey and private caseUrl |
-| GET /api/benchmark/cases/:id | Bearer caseKey + x-benchmark-run; scoped status |
-| GET /api/benchmark/results/:id | Same capability; 409 until approved report exists |
-| GET /api/benchmark/review/:id?run=RUN_ID | Valid Cloudflare Access JWT; draft and run state |
-| POST /api/benchmark/review/:id?run=RUN_ID | Valid Access JWT, same origin, decision, rationale and limitations acknowledgment |
+| API                                       | Authorization and behavior                                                                                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| POST /api/benchmark/submissions           | Same origin; strict JSON; stable random Idempotency-Key; returns 202 with caseId, runId, signed caseKey and private caseUrl |
+| GET /api/benchmark/cases/:id              | Bearer caseKey + x-benchmark-run; scoped status                                                                             |
+| GET /api/benchmark/results/:id            | Same capability; 409 until approved report exists                                                                           |
+| GET /api/benchmark/review/:id?run=RUN_ID  | Valid Cloudflare Access JWT; draft and run state                                                                            |
+| POST /api/benchmark/review/:id?run=RUN_ID | Valid Access JWT, same origin, decision, rationale and limitations acknowledgment                                           |
 
 The review decision is APPROVE, COUNTEREXAMPLE or REJECT. First decision is immutable; retries of the same decision re-signal the Workflow. A reviewer opens a known case/run link; no general case-list dashboard is introduced. There is no public report endpoint.
 
@@ -75,6 +75,7 @@ POST endpoints require the configured Origin. Bodies are streamed with a 64 KiB 
 API responses are no-store. Logs omit evidence, contact and capabilities. No automatic publication, customer claims, accounting actions, email or payment claims are made.
 
 Before a separately approved deployment, operators must:
+
 1. Provision the intended benchmark D1 database and replace the placeholder database ID in Wrangler.
 2. Review and apply the additive migration to that database.
 3. Set BENCHMARK_ORIGIN to the exact application origin.
@@ -100,3 +101,13 @@ npm run build
 The fast suite uses the same SQL migration with Node's in-memory SQLite adapter and a durable-step replay simulator. The runtime suite uses Cloudflare's Vitest plugin, real emulated D1 binding and actual Workflow class/step runtime, including a retried step, human approval wait, immutable draft and private report. Access-signed reviewer API approval is verified in the fast suite with cryptographically signed fixture JWTs and fixture JWKS.
 
 Runtime tests never connect to a remote production D1 database. No Resend notification or Stripe checkout is tested or implemented here. Existing dependency audit findings and broader application lint/type issues should be assessed separately rather than repaired through an architecture rewrite.
+
+## Final cloud verification
+
+Verified in Codespaces on 2026-10-07: 21 Node adversarial/API tests passed; 2 Cloudflare D1/Workflow runtime tests passed; strict benchmark type check passed; production build passed. The Node and Workers suites have separate configurations. Runtime teardown can emit canceled-request warnings; all assertions passed. Live deployed Cloudflare configuration remains unverified.
+
+Wrangler is pinned to 4.94.0, matching the existing Cloudflare Vite plugin. Worker types are generated with cf:types rather than duplicated from a separate workers-types package. Use npm run preview:worker after building for a Cloudflare runtime preview. The existing generic Vite preview assumes a different output layout; its script is preserved.
+
+The lockfile updates seroval to 1.6.8 to remove the critical serializer advisory. npm audit --omit=dev still reports 15 package advisories: 12 high, 1 moderate, 2 low, 0 critical. The project's existing build tools are partly listed in production dependencies, so this count is not an assessment of exploitability. Remaining dependency advisories need review before deployment.
+
+Private Codespaces browser forwarding prevented visual browser QA. HTTP smoke checks inside the cloud workspace are recorded in the verification report. No laptop terminal, production migration or deployment was used.

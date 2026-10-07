@@ -15,7 +15,7 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => ((m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry)),
+      (m) => (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry),
     );
   }
   return serverEntryPromise;
@@ -70,9 +70,12 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 }
 
 export default {
-  async scheduled(_event: ScheduledController, env: Env) { await recoverPending(env); },
+  async scheduled(_event: ScheduledController, env: Env) {
+    await recoverPending(env);
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    if (new URL(request.url).pathname.startsWith("/api/benchmark/")) return benchmarkApi(request, env, ctx);
+    if (new URL(request.url).pathname.startsWith("/api/benchmark/"))
+      return benchmarkApi(request, env, ctx);
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
