@@ -66,7 +66,7 @@ INCUMBENT_SUFFICIENT and HUMAN_AUTHORITY_FLOOR are deterministic evidence-backed
 
 ## Security and configuration
 
-Private links use a 90-day HS256 capability bound to case ID, run ID, read-only scope, issuer and audience. The secret must contain at least 32 characters of high-entropy secret material. The token is in a URL fragment, stored in sessionStorage and sent only in Authorization. Anyone holding the link has access to that single case. There is no account platform, per-link revocation or refresh endpoint in V0; rotating the signing secret invalidates all links.
+Private links use a 14-day HS256 capability bound to case ID, run ID, read-only scope, issuer and audience. The secret must contain at least 32 characters of high-entropy secret material. The token is in a URL fragment, stored in sessionStorage and sent only in Authorization. Anyone holding the link has access to that single case. There is no account platform or refresh endpoint in V0. M1.1 adds permanent case-scoped revocation through revoked_at; rotating the signing secret invalidates all links.
 
 Reviewer authorization verifies Access RS256 signature against the configured team's JWKS, issuer, audience and subject. Merely presenting a header is insufficient. Configure Cloudflare Access applications/policies covering BOTH `/review/*` and `/api/benchmark/review/*` with the same expected audience, and authorize only designated reviewers. No test/dev reviewer bypass exists in production.
 

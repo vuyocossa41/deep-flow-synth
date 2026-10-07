@@ -142,3 +142,22 @@ it("submission API dispatches one immutable Workflow for duplicate POSTs", async
     await instance.dispose();
   }
 });
+
+it("enforces case revocation against the real D1 binding", async () => {
+  const contact = { workEmail: "controller@example.com", permission: true as const };
+  const a = await submit(runtime.BENCHMARK_DB, crypto.randomUUID(), input(), contact);
+  const b = await submit(runtime.BENCHMARK_DB, crypto.randomUUID(), input(), contact);
+  const { requireCase } = await import("../../src/lib/benchmark/security");
+  const at = await capability(runtime, a.caseId, a.runId),
+    bt = await capability(runtime, b.caseId, b.runId);
+  const req = (token: string) =>
+    new Request("https://benchmark.test", { headers: { authorization: "Bearer " + token } });
+  await requireCase(req(at), runtime, a.caseId, a.runId);
+  await runtime.BENCHMARK_DB.prepare(
+    "UPDATE benchmark_submissions SET revoked_at=? WHERE case_id=? AND revoked_at IS NULL",
+  )
+    .bind(new Date().toISOString(), a.caseId)
+    .run();
+  await expect(requireCase(req(at), runtime, a.caseId, a.runId)).rejects.toThrow("revoked");
+  await requireCase(req(bt), runtime, b.caseId, b.runId);
+});

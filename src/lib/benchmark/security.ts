@@ -15,7 +15,7 @@ export async function capability(env: Env, caseId: string, runId: string) {
     .setIssuer("axon-correction-benchmark")
     .setAudience("private-case")
     .setIssuedAt()
-    .setExpirationTime("90d")
+    .setExpirationTime("14d")
     .sign(new TextEncoder().encode(env.BENCHMARK_CASE_SECRET));
 }
 export async function requireCase(request: Request, env: Env, caseId: string, runId: string) {
@@ -25,12 +25,29 @@ export async function requireCase(request: Request, env: Env, caseId: string, ru
     const { payload } = await jwtVerify(
       token,
       new TextEncoder().encode(env.BENCHMARK_CASE_SECRET),
-      { issuer: "axon-correction-benchmark", audience: "private-case", algorithms: ["HS256"] },
+      {
+        issuer: "axon-correction-benchmark",
+        audience: "private-case",
+        algorithms: ["HS256"],
+        maxTokenAge: "14d",
+      },
     );
     if (payload.caseId !== caseId || payload.runId !== runId || payload.scope !== "case:read")
       throw new Error();
+    if (
+      typeof payload.iat !== "number" ||
+      typeof payload.exp !== "number" ||
+      payload.exp - payload.iat > 14 * 86400
+    )
+      throw new Error();
+    const access = await env.BENCHMARK_DB.prepare(
+      "SELECT s.revoked_at FROM benchmark_submissions s JOIN benchmark_runs r ON r.case_id=s.case_id WHERE s.case_id=? AND r.run_id=?",
+    )
+      .bind(caseId, runId)
+      .first<{ revoked_at: string | null }>();
+    if (!access || access.revoked_at !== null) throw new Error();
   } catch {
-    throw new HttpError(403, "Private case key is invalid or expired");
+    throw new HttpError(403, "Private case key is invalid, expired or revoked");
   }
 }
 export async function requireReviewer(request: Request, env: Env) {

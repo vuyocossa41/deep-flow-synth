@@ -163,7 +163,7 @@ export function SubmitPage() {
     return (
       <Frame title="Correction received">
         <p className="mb-4">
-          Save your private case link. Anyone with this link can read this case for 90 days.
+          Save your private case link. Anyone with this link can read this case for 14 days.
         </p>
         <p className="mb-2 break-all font-mono text-sm">Case {receipt.caseId}</p>
         <p className="mb-7 break-all font-mono text-sm">Run {receipt.runId}</p>

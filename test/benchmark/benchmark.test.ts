@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import { exportJWK, generateKeyPair, SignJWT } from "jose";
+import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from "jose";
 import {
   closeReport,
   deterministic,
@@ -22,6 +22,7 @@ import { benchmarkApi } from "../../src/lib/benchmark/api";
 function database() {
   const sql = new DatabaseSync(":memory:");
   sql.exec(readFileSync("migrations/0001_correction_benchmark.sql", "utf8"));
+  sql.exec(readFileSync("migrations/0002_case_capability_revocation.sql", "utf8"));
   class Statement {
     args: any[] = [];
     constructor(public query: string) {}
@@ -592,5 +593,83 @@ describe("additional retry and provider boundaries", () => {
       (await benchmarkApi(request, env, { waitUntil: vi.fn() } as ExecutionContext)).status,
     ).toBe(400);
     expect(sql.prepare("SELECT COUNT(*) AS n FROM benchmark_submissions").get()?.n).toBe(0);
+  });
+});
+
+describe("M1.1 private capability hardening", () => {
+  it("issues exactly fourteen-day capabilities and rejects old ninety-day tokens", async () => {
+    const s = await saved();
+    const token = await capability(env, s.caseId, s.runId);
+    const decoded = decodeJwt(token);
+    expect(decoded.exp! - decoded.iat!).toBe(14 * 86400);
+    const old = await new SignJWT({ ...s, scope: "case:read" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("axon-correction-benchmark")
+      .setAudience("private-case")
+      .setIssuedAt()
+      .setExpirationTime("90d")
+      .sign(new TextEncoder().encode(env.BENCHMARK_CASE_SECRET));
+    await expect(
+      requireCase(
+        new Request("https://benchmark.test", { headers: { authorization: "Bearer " + old } }),
+        env,
+        s.caseId,
+        s.runId,
+      ),
+    ).rejects.toThrow();
+  });
+  it("revokes all capabilities for one case without affecting another case", async () => {
+    const a = await saved(),
+      b = await saved();
+    const at = await capability(env, a.caseId, a.runId),
+      bt = await capability(env, b.caseId, b.runId);
+    await db
+      .prepare(
+        "UPDATE benchmark_submissions SET revoked_at=? WHERE case_id=? AND revoked_at IS NULL",
+      )
+      .bind(new Date().toISOString(), a.caseId)
+      .run();
+    await expect(
+      requireCase(
+        new Request("https://benchmark.test", { headers: { authorization: "Bearer " + at } }),
+        env,
+        a.caseId,
+        a.runId,
+      ),
+    ).rejects.toThrow("revoked");
+    await requireCase(
+      new Request("https://benchmark.test", { headers: { authorization: "Bearer " + bt } }),
+      env,
+      b.caseId,
+      b.runId,
+    );
+    const renewed = await capability(env, a.caseId, a.runId);
+    await expect(
+      requireCase(
+        new Request("https://benchmark.test", { headers: { authorization: "Bearer " + renewed } }),
+        env,
+        a.caseId,
+        a.runId,
+      ),
+    ).rejects.toThrow();
+    for (const kind of ["cases", "results"]) {
+      expect(
+        (
+          await benchmarkApi(
+            new Request("https://benchmark.test/api/benchmark/" + kind + "/" + a.caseId, {
+              headers: { authorization: "Bearer " + at, "x-benchmark-run": a.runId },
+            }),
+            env,
+            { waitUntil: vi.fn() } as ExecutionContext,
+          )
+        ).status,
+      ).toBe(403);
+    }
+    await expect(
+      db
+        .prepare("UPDATE benchmark_submissions SET revoked_at=NULL WHERE case_id=?")
+        .bind(a.caseId)
+        .run(),
+    ).rejects.toThrow("permanent");
   });
 });
