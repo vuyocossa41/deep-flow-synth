@@ -54,7 +54,7 @@ export async function processCase(env:Env,s:Scope,step:Steps){
   });
   for(let i=0;;i++){
     const review=await step.do("review status "+i,async()=>{const run=await getRun(env.BENCHMARK_DB,s);return run?.approved_at?run.review_decision:null;});
-    if(review){if(review==="REJECT")return {status:"INSUFFICIENT_EVIDENCE"};break;}
+    if(review){if(review==="REJECT"){await step.do("rejected review",()=>env.BENCHMARK_DB.prepare("UPDATE benchmark_runs SET state='REJECTED',updated_at=? WHERE case_id=? AND run_id=? AND review_decision='REJECT'").bind(new Date().toISOString(),s.caseId,s.runId).run());return {status:"INSUFFICIENT_EVIDENCE"};}break;}
     try{await step.waitForEvent("review decision "+i,{type:"review",timeout:"30 days"});}catch{/* Expiry does not authorize release. */ }
   }
   return step.do("Correction Map",()=>release(env,s));

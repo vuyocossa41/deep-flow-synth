@@ -6,7 +6,7 @@ export async function getRun(db:D1Database,s:Scope){return db.prepare("SELECT * 
 export async function getSubmission(db:D1Database,caseId:string){return db.prepare("SELECT case_id,evidence_json,payload_hash,status,created_at FROM benchmark_submissions WHERE case_id=?").bind(caseId).first<Submission>();}
 export function event(db:D1Database,s:Scope,id:string,kind:string,payload:unknown){return db.prepare("INSERT OR IGNORE INTO benchmark_events(case_id,run_id,event_id,kind,payload_json,created_at) VALUES(?,?,?,?,?,?)").bind(s.caseId,s.runId,id,kind,JSON.stringify(payload),new Date().toISOString());}
 export async function state(db:D1Database,s:Scope,status:string){
-  await db.batch([db.prepare("UPDATE benchmark_submissions SET status=?,updated_at=? WHERE case_id=? AND EXISTS(SELECT 1 FROM benchmark_runs WHERE case_id=? AND run_id=? AND approved_at IS NULL)").bind(status,new Date().toISOString(),s.caseId,s.caseId,s.runId),event(db,s,"status:"+status,"STATUS",{status})]);
+  await db.batch([db.prepare("UPDATE benchmark_submissions SET status=?,updated_at=? WHERE case_id=? AND EXISTS(SELECT 1 FROM benchmark_runs WHERE case_id=? AND run_id=? AND approved_at IS NULL)").bind(status,new Date().toISOString(),s.caseId,s.caseId,s.runId),db.prepare("UPDATE benchmark_runs SET state=?,updated_at=? WHERE case_id=? AND run_id=? AND draft_json IS NULL AND approved_at IS NULL").bind(status,new Date().toISOString(),s.caseId,s.runId),event(db,s,"status:"+status,"STATUS",{status})]);
 }
 export async function submit(db:D1Database,key:string,input:Intake,contact:{workEmail:string;permission:true}){
   const keyHash=await digest(key),payloadHash=await digest(stable({input,contact}));

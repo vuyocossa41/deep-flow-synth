@@ -32,3 +32,5 @@ CREATE TRIGGER immutable_findings BEFORE UPDATE ON benchmark_findings BEGIN SELE
 CREATE TRIGGER immutable_draft BEFORE UPDATE OF draft_json ON benchmark_runs WHEN OLD.draft_json IS NOT NULL AND NEW.draft_json IS NOT OLD.draft_json BEGIN SELECT RAISE(ABORT,'immutable draft'); END;
 CREATE TRIGGER immutable_report BEFORE UPDATE OF report_json ON benchmark_runs WHEN OLD.report_json IS NOT NULL AND NEW.report_json IS NOT OLD.report_json BEGIN SELECT RAISE(ABORT,'immutable report'); END;
 CREATE TRIGGER immutable_review BEFORE UPDATE OF approved_at,reviewer_subject,review_note,review_decision ON benchmark_runs WHEN OLD.approved_at IS NOT NULL BEGIN SELECT RAISE(ABORT,'immutable review'); END;
+
+CREATE INDEX benchmark_runs_recovery ON benchmark_runs(state,approved_at);
