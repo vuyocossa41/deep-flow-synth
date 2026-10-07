@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "deep-flow-synth",
+  "name": "axon-correction-benchmark-beta",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": [
     "nodejs_compat"
@@ -9,15 +9,15 @@
   "d1_databases": [
     {
       "binding": "BENCHMARK_DB",
-      "database_name": "axon-correction-benchmark",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_name": "axon-correction-benchmark-beta",
+      "database_id": "ab704500-0ec3-466c-bff7-39492bfb6234",
       "migrations_dir": "migrations"
     }
   ],
   "workflows": [
     {
       "binding": "BENCHMARK",
-      "name": "axon-correction-benchmark",
+      "name": "axon-correction-benchmark-beta",
       "class_name": "CorrectionWorkflow"
     }
   ],
@@ -27,9 +27,12 @@
     ]
   },
   "vars": {
-    "BENCHMARK_ORIGIN": "http://localhost:8080",
+    "BENCHMARK_ORIGIN": "https://axon-correction-benchmark-beta.vuyocossa41.workers.dev",
     "BENCHMARK_MODEL": "llama-3.3-70b-versatile",
-    "BENCHMARK_ACCESS_TEAM": "",
-    "BENCHMARK_ACCESS_AUD": ""
-  }
+    "BENCHMARK_ACCESS_TEAM": "delicate-block-06bf.cloudflareaccess.com",
+    "BENCHMARK_ACCESS_AUD": "287a442777b9e4c00638390b0a3d1db8c0308d90f567d4e2ffbb4b890a349363"
+  },
+  "workers_dev": true,
+  "preview_urls": false,
+  "account_id": "34a8750c552e11cbd96f3ffceba8b62a"
 }
