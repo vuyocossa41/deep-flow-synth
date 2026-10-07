@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { closeReport, normalize, submissionSchema, type Draft } from "./domain";
 import { capability, HttpError, origin, readJson, requireCase, requireReviewer } from "./security";
-import { event, getRun, getSubmission, submit, type Scope } from "./store";
+import { getRun, getSubmission, submit, type Scope } from "./store";
 import { start } from "./engine";
 const uuid=z.string().uuid();
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"cache-control":"no-store","referrer-policy":"no-referrer","x-content-type-options":"nosniff"}});
@@ -45,7 +45,7 @@ export async function benchmarkApi(request:Request,env:Env,ctx:ExecutionContext)
         const now=new Date().toISOString();
         await env.BENCHMARK_DB.batch([
           env.BENCHMARK_DB.prepare("UPDATE benchmark_runs SET reviewer_subject=?,review_note=?,review_decision=?,approved_at=?,updated_at=? WHERE case_id=? AND run_id=? AND state='REVIEW_REQUIRED' AND approved_at IS NULL").bind(reviewer,decision.note,decision.decision,now,now,caseId,runId),
-          event(env.BENCHMARK_DB,s,"review","HUMAN_REVIEW",{reviewer,decision:decision.decision,note:decision.note})
+          env.BENCHMARK_DB.prepare("INSERT OR IGNORE INTO benchmark_events(case_id,run_id,event_id,kind,payload_json,created_at) SELECT case_id,run_id,'review','HUMAN_REVIEW',json_object('reviewer',reviewer_subject,'decision',review_decision,'note',review_note),approved_at FROM benchmark_runs WHERE case_id=? AND run_id=? AND approved_at IS NOT NULL").bind(caseId,runId)
         ]);
         const saved=await getRun(env.BENCHMARK_DB,s);if(saved?.review_decision!==decision.decision)throw new HttpError(409,"Another reviewer already decided");
       }

@@ -3,9 +3,10 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { closeReport, deterministic, intakeSchema, normalize, qualify, validateClaims, isCounterexample, type Intake, type Draft } from "../../src/lib/benchmark/domain";
-import { submit, getRun, type Scope } from "../../src/lib/benchmark/store";
+import { submit, getRun, persistDraft, type Scope } from "../../src/lib/benchmark/store";
 import { processCase, release, type Steps } from "../../src/lib/benchmark/engine";
 import { capability, requireCase, requireReviewer } from "../../src/lib/benchmark/security";
+import { analysis } from "../../src/lib/benchmark/ai";
 import { benchmarkApi } from "../../src/lib/benchmark/api";
 
 function database(){
@@ -92,6 +93,8 @@ describe("persistence, capability and retry",()=>{
  });
  it("rejects absent, forged and expired private capabilities",async()=>{
   const s=await saved();await expect(requireCase(new Request("https://benchmark.test"),env,s.caseId,s.runId)).rejects.toThrow();
+  const forged=await new SignJWT({...s,scope:"case:read"}).setProtectedHeader({alg:"HS256"}).setIssuer("axon-correction-benchmark").setAudience("private-case").setExpirationTime("1h").sign(new TextEncoder().encode("different-secret-at-least-32-characters"));
+  await expect(requireCase(new Request("https://benchmark.test",{headers:{authorization:"Bearer "+forged}}),env,s.caseId,s.runId)).rejects.toThrow();
   const token=await new SignJWT({...s,scope:"case:read"}).setProtectedHeader({alg:"HS256"}).setIssuer("axon-correction-benchmark").setAudience("private-case").setExpirationTime(1).sign(new TextEncoder().encode(env.BENCHMARK_CASE_SECRET));
   await expect(requireCase(new Request("https://benchmark.test",{headers:{authorization:"Bearer "+token}}),env,s.caseId,s.runId)).rejects.toThrow();
  });
@@ -137,5 +140,36 @@ describe("persistence, capability and retry",()=>{
   await processCase(env,s,steps);const key=await capability(env,s.caseId,s.runId);
   const result=await benchmarkApi(new Request("https://benchmark.test/api/benchmark/results/"+s.caseId,{headers:{authorization:"Bearer "+key,"x-benchmark-run":s.runId}}),env,{waitUntil:vi.fn()} as ExecutionContext);
   expect(result.status).toBe(200);expect((await result.json()).status).toBe("BENCHMARK_COMPLETE");
+ });
+});
+
+describe("additional retry and provider boundaries",()=>{
+ it("repairs status when a draft exists after a crash before the status write",async()=>{
+  const s=await saved(),steps=new ReplaySteps();steps.crashOnce=true;
+  await expect(processCase(env,s,steps)).rejects.toThrow();
+  const draft=JSON.parse((await getRun(db,s))!.draft_json!) as Draft;
+  await db.prepare("UPDATE benchmark_submissions SET status='BENCHMARKING' WHERE case_id=?").bind(s.caseId).run();
+  await persistDraft(db,s,draft);
+  expect(sql.prepare("SELECT status FROM benchmark_submissions WHERE case_id=?").get(s.caseId)?.status).toBe("HUMAN_REVIEW_REQUIRED");
+ });
+ it("ends an unqualified run without leaving it in the dispatch backlog",async()=>{
+  const s=await saved(input({authorization:"UNKNOWN"}));
+  expect(await processCase(env,s,new ReplaySteps())).toEqual({status:"INSUFFICIENT_EVIDENCE"});
+  expect((await getRun(db,s))?.state).toBe("INSUFFICIENT_EVIDENCE");
+ });
+ it("rejects hallucinated provider fields and sends only redacted evidence to the provider",async()=>{
+  const evidence=normalize(input());
+  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify({claims:[{stage:"V2",classification:"INFERRED",claim:"Inference: paid 999999",sourceEvidenceIds:["e-decisionv2"],ledgerAmount:999999}]})}}]}));
+  vi.stubGlobal("fetch",fetcher);
+  const result=await analysis({...env,GROQ_API_KEY:"fixture-key"},evidence,false);
+  expect(result.claims).toEqual([]);expect(result.error).toContain("rejected");
+  const body=JSON.parse(fetcher.mock.calls[0][1]!.body as string);
+  expect(JSON.stringify(body)).not.toContain(contact.workEmail);
+  expect(body.messages[1].content).not.toContain("contact");
+ });
+ it("rejects malformed evidence with a client error and never stores it",async()=>{
+  const request=new Request("https://benchmark.test/api/benchmark/submissions",{method:"POST",headers:{origin:env.BENCHMARK_ORIGIN,"content-type":"application/json","idempotency-key":crypto.randomUUID()},body:JSON.stringify({evidence:input({evidence:[{id:"e-bad",field:"authorization",value:"Conflict",occurredAt:"UNKNOWN",contradicts:["e-missing"]}]}),contact})});
+  expect((await benchmarkApi(request,env,{waitUntil:vi.fn()} as ExecutionContext)).status).toBe(400);
+  expect(sql.prepare("SELECT COUNT(*) AS n FROM benchmark_submissions").get()?.n).toBe(0);
  });
 });
