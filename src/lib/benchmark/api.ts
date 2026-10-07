@@ -12,7 +12,8 @@ export async function benchmarkApi(request:Request,env:Env,ctx:ExecutionContext)
     if(path==="/submissions"&&request.method==="POST"){
       if(!env.BENCHMARK_CASE_SECRET||env.BENCHMARK_CASE_SECRET.length<32)throw new HttpError(503,"Private case access not configured");
       const key=request.headers.get("idempotency-key");if(!key||! /^[a-zA-Z0-9-]{32,100}$/.test(key))throw new HttpError(400,"A random stable submission key is required");
-      const input=submissionSchema.parse(await readJson(request));normalize(input.evidence);
+      const input=submissionSchema.parse(await readJson(request));
+      try{normalize(input.evidence);}catch{throw new HttpError(400,"Invalid evidence IDs, contradiction links or UNKNOWN fields");}
       const content=JSON.stringify(input.evidence);
       if(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(content)||/\b(?:sk_live_|sk_test_|ghp_|AKIA)[A-Za-z0-9]+/.test(content)||/-----BEGIN .*PRIVATE KEY-----/.test(content))throw new HttpError(400,"Remove identities or credentials from evidence; contact email belongs only in contact metadata");
       const s=await submit(env.BENCHMARK_DB,key,input.evidence,input.contact);

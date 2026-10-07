@@ -76,8 +76,8 @@ export function validateClaims(raw: unknown, evidence: Evidence[]): Claim[] {
     if (c.classification === "OBSERVED" && !known.some(e => e.value === c.claim)) throw new Error("Observed claim must quote evidence exactly");
     if (c.classification === "INFERRED" && !c.claim.startsWith("Inference:")) throw new Error("Inference must be labelled");
     if (c.classification === "COUNTEREVIDENCE" && !sources.some(e => e?.contradicts.length && e.contradicts.every(id => c.sourceEvidenceIds.includes(id)))) throw new Error("Conflict provenance missing");
-    const numbers = c.claim.match(/\d+(?:[.,]\d+)*/g) || [];
-    if (numbers.some(n => !known.some(e => (e.value.match(/\d+(?:[.,]\d+)*/g) || []).includes(n)))) throw new Error("Hallucinated numeric field");
+    const numbers: string[] = c.claim.match(/\d+(?:[.,]\d+)*/g) || [];
+    if (numbers.some(n => !known.some(e => Array.from(e.value.match(/\d+(?:[.,]\d+)*/g) || []).includes(n)))) throw new Error("Hallucinated numeric field");
     if (c.topic !== "CORRECTION" && c.classification !== "OBSERVED" && c.classification !== "UNKNOWN") throw new Error("Guardrails require observations or UNKNOWN");
   }
   return claims;

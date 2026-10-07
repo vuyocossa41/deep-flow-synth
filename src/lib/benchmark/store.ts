@@ -22,7 +22,7 @@ export async function submit(db:D1Database,key:string,input:Intake,contact:{work
   if(!run)throw new Error("Missing run");return {caseId:saved.case_id,runId:run.run_id};
 }
 export async function persistDraft(db:D1Database,s:Scope,draft:Draft){
-  const existing=await getRun(db,s);if(existing?.draft_json)return;
+  const existing=await getRun(db,s);if(existing?.draft_json){await state(db,s,"HUMAN_REVIEW_REQUIRED");return;}
   const now=new Date().toISOString();
   await db.batch([
     ...draft.findings.map(f=>db.prepare("INSERT OR IGNORE INTO benchmark_findings(case_id,run_id,finding_id,stage,topic,classification,claim,source_evidence_ids,producer,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(s.caseId,s.runId,f.id,f.stage,f.topic,f.classification,f.claim,JSON.stringify(f.sourceEvidenceIds),f.producer,now)),

@@ -68,4 +68,6 @@ export async function start(env:Env,s:Scope){
 export async function recoverPending(env:Env){
   const pending=await env.BENCHMARK_DB.prepare("SELECT case_id,run_id FROM benchmark_runs WHERE state='PENDING' LIMIT 25").all<{case_id:string;run_id:string}>();
   for(const r of pending.results)await start(env,{caseId:r.case_id,runId:r.run_id});
+  const reviewed=await env.BENCHMARK_DB.prepare("SELECT case_id,run_id FROM benchmark_runs WHERE state='REVIEW_REQUIRED' AND approved_at IS NOT NULL LIMIT 25").all<{case_id:string;run_id:string}>();
+  for(const r of reviewed.results){const instance=await env.BENCHMARK.get(r.run_id);const status=await instance.status();if(status.status!=="complete")await instance.sendEvent({type:"review",payload:{caseId:r.case_id,runId:r.run_id}});}
 }
