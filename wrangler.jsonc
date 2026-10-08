@@ -30,7 +30,8 @@
     "BENCHMARK_ORIGIN": "https://axon-correction-benchmark-beta.vuyocossa41.workers.dev",
     "BENCHMARK_MODEL": "llama-3.3-70b-versatile",
     "BENCHMARK_ACCESS_TEAM": "delicate-block-06bf.cloudflareaccess.com",
-    "BENCHMARK_ACCESS_AUD": "287a442777b9e4c00638390b0a3d1db8c0308d90f567d4e2ffbb4b890a349363"
+    "BENCHMARK_ACCESS_AUD": "287a442777b9e4c00638390b0a3d1db8c0308d90f567d4e2ffbb4b890a349363",
+    "BENCHMARK_AI_MODE": "AI_DISABLED"
   },
   "workers_dev": true,
   "preview_urls": false,
@@ -43,6 +44,12 @@
         "limit": 5,
         "period": 60
       }
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "BENCHMARK_CONTROL",
+      "id": "00000000000000000000000000000000"
     }
   ]
 }

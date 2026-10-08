@@ -60,17 +60,18 @@ export async function submit(
   key: string,
   input: Intake,
   contact: { workEmail: string; permission: true },
+  invitationHash: string,
 ) {
   const keyHash = await digest(key),
-    payloadHash = await digest(stable({ input, contact }));
+    payloadHash = await digest(stable({ input, contact, invitationHash }));
   const s = { caseId: crypto.randomUUID(), runId: crypto.randomUUID() },
     now = new Date().toISOString();
   await db.batch([
     db
       .prepare(
-        "INSERT OR IGNORE INTO benchmark_submissions(case_id,idempotency_hash,payload_hash,evidence_json,contact_email,contact_permission,status,created_at,updated_at) VALUES(?,?,?,?,?,1,'RECEIVED',?,?)",
+        "INSERT OR IGNORE INTO benchmark_submissions(case_id,idempotency_hash,payload_hash,evidence_json,contact_email,contact_permission,status,created_at,updated_at,invitation_hash) VALUES(?,?,?,?,?,1,'RECEIVED',?,?,?)",
       )
-      .bind(s.caseId, keyHash, payloadHash, JSON.stringify(input), contact.workEmail, now, now),
+      .bind(s.caseId, keyHash, payloadHash, JSON.stringify(input), contact.workEmail, now, now, invitationHash),
     db
       .prepare(
         "INSERT INTO benchmark_permissions(case_id,process,ai,publication,created_at) SELECT case_id,1,?,0,? FROM benchmark_submissions WHERE case_id=?",
@@ -87,6 +88,8 @@ export async function submit(
     .bind(keyHash)
     .first<{ case_id: string; payload_hash: string }>();
   if (!saved || saved.payload_hash !== payloadHash) throw new Error("IDEMPOTENCY_CONFLICT");
+  const invite = await db.prepare("SELECT revoked_at FROM benchmark_invitations WHERE secret_hash=?").bind(invitationHash).first<{revoked_at:string|null}>();
+  if (!invite || invite.revoked_at) throw new Error("INVITATION_DENIED");
   const run = await db
     .prepare("SELECT run_id FROM benchmark_runs WHERE case_id=?")
     .bind(saved.case_id)

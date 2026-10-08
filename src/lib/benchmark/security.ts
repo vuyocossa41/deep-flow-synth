@@ -1,3 +1,4 @@
+import { assertScopeActive } from "./control";
 import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 export class HttpError extends Error {
   constructor(
@@ -46,6 +47,7 @@ export async function requireCase(request: Request, env: Env, caseId: string, ru
       .bind(caseId, runId)
       .first<{ revoked_at: string | null }>();
     if (!access || access.revoked_at !== null) throw new Error();
+    await assertScopeActive(env,{caseId,runId});
   } catch {
     throw new HttpError(403, "Private case key is invalid, expired or revoked");
   }

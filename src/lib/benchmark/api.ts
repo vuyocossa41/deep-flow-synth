@@ -1,3 +1,5 @@
+import { invitationHash, assertInvitationUsable, recordAdmissionForScope } from "./admission";
+import { assertScopeActive } from "./control";
 import { protectSubmission } from "./protection";
 import { z } from "zod";
 import { closeReport, normalize, submissionSchema, type Draft } from "./domain";
@@ -20,11 +22,13 @@ export async function benchmarkApi(request: Request, env: Env, ctx: ExecutionCon
     if (request.method !== "GET") origin(request, env);
     if (path === "/submissions" && request.method === "POST") {
       await protectSubmission(request, env);
+      const admission = await invitationHash(request);
       if (!env.BENCHMARK_CASE_SECRET || env.BENCHMARK_CASE_SECRET.length < 32)
         throw new HttpError(503, "Private case access not configured");
       const key = request.headers.get("idempotency-key");
       if (!key || !/^[a-zA-Z0-9-]{32,100}$/.test(key))
         throw new HttpError(400, "A random stable submission key is required");
+      await assertInvitationUsable(env,admission,key);
       const input = submissionSchema.parse(await readJson(request));
       try {
         normalize(input.evidence);
@@ -41,7 +45,9 @@ export async function benchmarkApi(request: Request, env: Env, ctx: ExecutionCon
           400,
           "Remove identities or credentials from evidence; contact email belongs only in contact metadata",
         );
-      const s = await submit(env.BENCHMARK_DB, key, input.evidence, input.contact);
+      const s = await submit(env.BENCHMARK_DB, key, input.evidence, input.contact, admission);
+      await assertScopeActive(env,s);
+      await recordAdmissionForScope(env,s);
       ctx.waitUntil(
         start(env, s).catch(() => {
           console.error(
@@ -71,6 +77,7 @@ export async function benchmarkApi(request: Request, env: Env, ctx: ExecutionCon
     const run = await getRun(env.BENCHMARK_DB, s),
       submission = await getSubmission(env.BENCHMARK_DB, caseId);
     if (!run || !submission) throw new HttpError(404, "Case not found");
+    await assertScopeActive(env,s);
     if (kind === "cases" && request.method === "GET") {
       if (run.state === "PENDING") ctx.waitUntil(start(env, s));
       return json({
@@ -151,6 +158,10 @@ export async function benchmarkApi(request: Request, env: Env, ctx: ExecutionCon
     }
     if (error instanceof Error && error.message.includes("BENCHMARK_CAP_REACHED"))
       return json({ error: "Invitation beta capacity reached; contact the operator" }, 429);
+    if (error instanceof Error && error.message.includes("INVITATION_DENIED"))
+      return json({error:"Invitation unavailable, expired, revoked or already used"},403);
+    if (error instanceof Error && error.message.includes("CASE_BLOCKED"))
+      return json({error:"Case unavailable"},403);
     if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT")
       return json({ error: "Submission key already used with different content" }, 409);
     console.error(JSON.stringify({ component: "benchmark-api", error: "Request failed" }));

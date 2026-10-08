@@ -1,3 +1,14 @@
+import { digest } from "../../src/lib/benchmark/domain";
+const fixtureInvites=new Map<string,string>();
+async function fixtureInvitation(db:D1Database,key:string) {
+ let secret=fixtureInvites.get(key);
+ if(!secret) {secret=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join("");fixtureInvites.set(key,secret);}
+ await db.prepare("INSERT OR IGNORE INTO benchmark_invitations(secret_hash,created_at,expires_at) VALUES(?,?,?)").bind(await digest(secret),new Date().toISOString(),new Date(Date.now()+86400000).toISOString()).run();
+ return secret;
+}
+async function submit(db:D1Database,key:string,value:Parameters<typeof rawSubmit>[2],contact:Parameters<typeof rawSubmit>[3]) {
+ return rawSubmit(db,key,value,contact,await digest(await fixtureInvitation(db,key)));
+}
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
@@ -13,7 +24,7 @@ import {
   type Intake,
   type Draft,
 } from "../../src/lib/benchmark/domain";
-import { submit, getRun, persistDraft, type Scope } from "../../src/lib/benchmark/store";
+import { submit as rawSubmit, getRun, persistDraft, type Scope } from "../../src/lib/benchmark/store";
 import { processCase, release, type Steps } from "../../src/lib/benchmark/engine";
 import { capability, requireCase, requireReviewer } from "../../src/lib/benchmark/security";
 import { analysis } from "../../src/lib/benchmark/ai";
@@ -24,6 +35,7 @@ function database() {
   sql.exec(readFileSync("migrations/0001_correction_benchmark.sql", "utf8"));
   sql.exec(readFileSync("migrations/0002_case_capability_revocation.sql", "utf8"));
   sql.exec(readFileSync("migrations/0003_beta_safety.sql", "utf8"));
+  sql.exec(readFileSync("migrations/0004_closed_beta.sql", "utf8"));
   class Statement {
     args: any[] = [];
     constructor(public query: string) {}
@@ -90,11 +102,15 @@ function input(overrides: Partial<Intake> = {}): Intake {
 }
 const contact = { workEmail: "controller@example.com", permission: true as const };
 let db: D1Database, sql: DatabaseSync, env: Env;
-beforeEach(() => {
+beforeEach(async () => {
   const adapter = database();
   db = adapter.db;
   sql = adapter.sql;
+  fixtureInvites.clear();
+  const controls=new Map<string,string>();
   env = {
+    BENCHMARK_AI_MODE:"AI_DISABLED",
+    BENCHMARK_CONTROL:{get:vi.fn(async (key:string,type?:string)=>{const value=controls.get(key)||null;return type==="json"&&value?JSON.parse(value):value;}),put:vi.fn(async(key:string,value:string)=>{controls.set(key,value);}),list:vi.fn(async(options:{prefix:string})=>({keys:[...controls.keys()].filter(k=>k.startsWith(options.prefix)).map(name=>({name})),list_complete:true}))},
     BENCHMARK_DB: db,
     BENCHMARK_SUBMISSION_LIMIT: { limit: vi.fn(async () => ({ success: true })) },
     BENCHMARK_CASE_SECRET: "test-secret-with-at-least-32-characters",
@@ -103,10 +119,11 @@ beforeEach(() => {
     BENCHMARK_ACCESS_TEAM: "reviewer.cloudflareaccess.com",
     BENCHMARK_ACCESS_AUD: "reviewer-app",
     BENCHMARK: {
-      get: vi.fn(async () => ({ status: async () => ({ status: "running" }), sendEvent: vi.fn() })),
+      get: vi.fn(async (id:string) => ({ id, status: async () => ({ status: "running" }), sendEvent: vi.fn() })),
       create: vi.fn(),
     },
   } as Env;
+  sql.prepare("INSERT INTO benchmark_invitations(secret_hash,created_at,expires_at) VALUES(?,?,?)").run(await digest("a".repeat(64)),new Date().toISOString(),new Date(Date.now()+86400000).toISOString());
 });
 afterEach(() => {
   sql.close();
@@ -487,7 +504,7 @@ describe("persistence, capability and retry", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          origin: env.BENCHMARK_ORIGIN,
+          origin: env.BENCHMARK_ORIGIN, "x-benchmark-invitation": "a".repeat(64),
         "CF-Connecting-IP": "192.0.2.1",
           "Cf-Access-Jwt-Assertion": token,
         },
@@ -562,7 +579,7 @@ describe("additional retry and provider boundaries", () => {
       }),
     );
     vi.stubGlobal("fetch", fetcher);
-    const result = await analysis({ ...env, GROQ_API_KEY: "fixture-key" }, evidence, false);
+    const result = await analysis({ ...env, BENCHMARK_AI_MODE:"AUTHORIZED_AI", GROQ_API_KEY: "fixture-key" }, evidence, false);
     expect(result.claims).toEqual([]);
     expect(result.error).toContain("rejected");
     const body = JSON.parse(fetcher.mock.calls[0][1]!.body as string);
@@ -573,7 +590,7 @@ describe("additional retry and provider boundaries", () => {
     const request = new Request("https://benchmark.test/api/benchmark/submissions", {
       method: "POST",
       headers: {
-        origin: env.BENCHMARK_ORIGIN,
+        origin: env.BENCHMARK_ORIGIN, "x-benchmark-invitation": "a".repeat(64),
         "CF-Connecting-IP": "192.0.2.1",
         "content-type": "application/json",
         "idempotency-key": crypto.randomUUID(),
@@ -681,7 +698,7 @@ describe("M1.1 private capability hardening", () => {
 describe("M1.4 submission and deletion safety", () => {
   const ctx = () => ({ waitUntil: vi.fn() }) as unknown as ExecutionContext;
   const request = (body = "{invalid") => new Request("https://benchmark.test/api/benchmark/submissions", {
-    method: "POST", headers: { origin: env.BENCHMARK_ORIGIN, "content-type":"application/json",
+    method: "POST", headers: { origin: env.BENCHMARK_ORIGIN, "x-benchmark-invitation": "a".repeat(64), "content-type":"application/json",
       "CF-Connecting-IP":"192.0.2.55", "idempotency-key":crypto.randomUUID() }, body,
   });
   it("rejects excess before parsing, persistence and dispatch and recovers after reset", async () => {
@@ -720,7 +737,8 @@ describe("M1.4 submission and deletion safety", () => {
     const steps=new ReplaySteps(); steps.crashOnce=true;
     await expect(processCase(env,a,steps)).rejects.toThrow(); await approve(a); await processCase(env,a,steps);
     const now=new Date(Date.now()+31*86400000);
-    env.BENCHMARK.get=vi.fn(async()=>({status:async()=>({status:"complete"})})) as any;
+    let removed=false;
+    env.BENCHMARK.get=vi.fn(async(id:string)=>{if(removed)throw new Error("instance.not_found");return {id,status:async()=>({status:"complete"}),delete:async()=>{removed=true;}};}) as any;
     const plan=await planDeletion(env,a.caseId,now); expect(plan.eligible).toBe(true);
     expect(plan.counts.benchmark_findings).toBeGreaterThan(0); expect(plan.counts.benchmark_events).toBeGreaterThan(0);
     expect(await getRun(db,a)).not.toBeNull();
@@ -747,4 +765,147 @@ describe("M1.4 submission and deletion safety", () => {
     await expect(deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now)).rejects.toThrow("unsafe");
     expect(await getRun(db,a)).not.toBeNull();
   });
+});
+
+describe("M1.5 controlled beta",()=>{
+ it("requires admission before intake persistence and never dispatches unauthorized submissions",async()=>{
+  const ctx={waitUntil:vi.fn()} as unknown as ExecutionContext;
+  const r=await benchmarkApi(new Request(env.BENCHMARK_ORIGIN+"/api/benchmark/submissions",{method:"POST",headers:{origin:env.BENCHMARK_ORIGIN,"CF-Connecting-IP":"192.0.2.9","content-type":"application/json","idempotency-key":crypto.randomUUID()},body:JSON.stringify({evidence:input(),contact})}),env,ctx);
+  expect(r.status).toBe(403);expect(ctx.waitUntil).not.toHaveBeenCalled();expect(sql.prepare("SELECT COUNT(*) n FROM benchmark_submissions").get()?.n).toBe(0);
+ });
+ it("stores only invitation hashes and makes single-use admission/capacity atomic and retry-safe",async()=>{
+  const {issueInvitation,revokeInvitation}=await import("../../src/lib/benchmark/admission");
+  const invitation=await issueInvitation(db,new Date(Date.now()+86400000).toISOString()),key=crypto.randomUUID();
+  const a=await rawSubmit(db,key,input(),contact,invitation.hash);
+  expect(await rawSubmit(db,key,input(),contact,invitation.hash)).toEqual(a);
+  await expect(rawSubmit(db,crypto.randomUUID(),input(),contact,invitation.hash)).rejects.toThrow("INVITATION_DENIED");
+  expect(sql.prepare("SELECT accepted FROM benchmark_beta_capacity").get()?.accepted).toBe(1);
+  expect(JSON.stringify(sql.prepare("SELECT * FROM benchmark_invitations").all())).not.toContain(invitation.secret);
+  await revokeInvitation(env,invitation.hash);
+  await expect(rawSubmit(db,key,input(),contact,invitation.hash)).rejects.toThrow("INVITATION_DENIED");
+ });
+ it("rolls back invitation consumption when aggregate capacity refuses admission",async()=>{
+  const {issueInvitation}=await import("../../src/lib/benchmark/admission");
+  const invitation=await issueInvitation(db,new Date(Date.now()+86400000).toISOString());
+  sql.prepare("UPDATE benchmark_beta_capacity SET accepted=10").run();
+  await expect(rawSubmit(db,crypto.randomUUID(),input(),contact,invitation.hash)).rejects.toThrow("BENCHMARK_CAP_REACHED");
+  expect(sql.prepare("SELECT consumed_at FROM benchmark_invitations WHERE secret_hash=?").get(invitation.hash)?.consumed_at).toBeNull();
+  expect(sql.prepare("SELECT COUNT(*) n FROM benchmark_runs").get()?.n).toBe(0);
+ });
+ it("rejects unknown, expired and revoked invitations",async()=>{
+  await expect(rawSubmit(db,crypto.randomUUID(),input(),contact,"0".repeat(64))).rejects.toThrow("INVITATION_DENIED");
+  const secret=await fixtureInvitation(db,crypto.randomUUID()),hash=await digest(secret);
+  sql.prepare("UPDATE benchmark_invitations SET expires_at='2000-01-01T00:00:00Z' WHERE secret_hash=?").run(hash);
+  await expect(rawSubmit(db,crypto.randomUUID(),input(),contact,hash)).rejects.toThrow("INVITATION_DENIED");
+  sql.prepare("UPDATE benchmark_invitations SET expires_at='2100-01-01T00:00:00Z',revoked_at='2026-01-01T00:00:00Z' WHERE secret_hash=?").run(hash);
+  await expect(rawSubmit(db,crypto.randomUUID(),input(),contact,hash)).rejects.toThrow("INVITATION_DENIED");
+ });
+ it("enforces AI_DISABLED despite permission and a provider key, while deterministic review completes",async()=>{
+  const fetcher=vi.fn(()=>{throw new Error("No external transfer allowed");});vi.stubGlobal("fetch",fetcher);
+  const a=await saved(input({permissions:{process:true,ai:true,publication:false}}));
+  env.GROQ_API_KEY="synthetic-key";
+  expect((await analysis(env,normalize(input()),false)).error).toContain("AI_DISABLED");
+  const steps=new ReplaySteps();steps.crashOnce=true;await expect(processCase(env,a,steps)).rejects.toThrow();await approve(a);await processCase(env,a,steps);
+  const report=JSON.parse((await getRun(db,a))!.report_json!);closeReport(report.findings,report.evidence);expect(report.findings.length).toBeGreaterThan(0);
+  expect(fetcher).not.toHaveBeenCalled();
+ });
+ it("blocks stale writes, dispatch, replay and recovery and preserves denial after D1 fence loss",async()=>{
+  const {revokeCase,reconcileControls}=await import("../../src/lib/benchmark/control");
+  const {start,recoverPending}=await import("../../src/lib/benchmark/engine");
+  const a=await saved(),b=await saved(),at=await capability(env,a.caseId,a.runId),bt=await capability(env,b.caseId,b.runId);
+  await revokeCase(env,a);
+  await expect(start(env,a)).rejects.toThrow("unavailable");
+  await expect(processCase(env,a,new ReplaySteps())).rejects.toThrow("unavailable");
+  await expect(db.prepare("UPDATE benchmark_runs SET state='PENDING' WHERE case_id=?").bind(a.caseId).run()).rejects.toThrow("CASE_BLOCKED");
+  sql.prepare("DELETE FROM benchmark_case_controls WHERE case_id=?").run(a.caseId); // simulated restore of pre-revocation D1
+  await expect(requireCase(new Request("https://benchmark.test",{headers:{authorization:"Bearer "+at}}),env,a.caseId,a.runId)).rejects.toThrow("revoked");
+  await reconcileControls(env);
+  expect(sql.prepare("SELECT kind FROM benchmark_case_controls WHERE case_id=?").get(a.caseId)?.kind).toBe("REVOKE");
+  await requireCase(new Request("https://benchmark.test",{headers:{authorization:"Bearer "+bt}}),env,b.caseId,b.runId);
+  await recoverPending(env);expect(env.BENCHMARK.create).not.toHaveBeenCalled();
+ });
+ it("preserves D1 and denial when Workflow deletion fails",async()=>{
+  const {planDeletion,deleteCase,retentionPolicyVersion}=await import("../../src/lib/benchmark/retention");
+  const a=await saved();sql.prepare("UPDATE benchmark_runs SET state='COMPLETE'").run();
+  env.BENCHMARK.get=vi.fn(async(id:string)=>({id,status:async()=>({status:"complete"}),delete:async()=>{throw new Error("API failure");}})) as any;
+  const now=new Date(Date.now()+31*86400000),plan=await planDeletion(env,a.caseId,now);
+  await expect(deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now)).rejects.toThrow("API failure");
+  expect(await getRun(db,a)).not.toBeNull();expect(await env.BENCHMARK_CONTROL.get("case:"+a.caseId)).not.toBeNull();
+ });
+});
+
+it("restoring a purged case does not restore its original capability or processing authority",async()=>{
+ const {planDeletion,deleteCase,retentionPolicyVersion}=await import("../../src/lib/benchmark/retention");
+ const {reconcileControls}=await import("../../src/lib/benchmark/control");
+ const a=await saved(),b=await saved(),token=await capability(env,a.caseId,a.runId);
+ const steps=new ReplaySteps();steps.crashOnce=true;await expect(processCase(env,a,steps)).rejects.toThrow();await approve(a);await processCase(env,a,steps);
+ const tables=["benchmark_submissions","benchmark_permissions","benchmark_runs","benchmark_findings","benchmark_events"];
+ const snapshot=tables.map(table=>({table,rows:sql.prepare("SELECT * FROM "+table+" WHERE case_id=?").all(a.caseId)}));
+ let removed=false;env.BENCHMARK.get=vi.fn(async(id:string)=>{if(id===a.runId&&removed)throw new Error("instance.not_found");return {id,status:async()=>({status:"complete"}),delete:async()=>{removed=true;}};}) as any;
+ const now=new Date(Date.now()+31*86400000),plan=await planDeletion(env,a.caseId,now);
+ await deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now);
+ // Simulate D1 Time Travel restoring a complete old image; external KV is deliberately not restored.
+ sql.prepare("DELETE FROM benchmark_case_controls WHERE case_id=?").run(a.caseId);
+ const trigger=sql.prepare("SELECT sql FROM sqlite_master WHERE name='invitation_admission'").get()?.sql as string;
+ sql.exec("DROP TRIGGER invitation_admission");
+ for(const {table,rows} of snapshot) for(const row of rows) {
+  const columns=Object.keys(row);sql.prepare("INSERT INTO "+table+"("+columns.join(",")+") VALUES("+columns.map(()=>"?").join(",")+")").run(...Object.values(row) as any[]);
+ }
+ sql.exec(trigger);
+ const request=new Request("https://benchmark.test",{headers:{authorization:"Bearer "+token}});
+ await expect(requireCase(request,env,a.caseId,a.runId)).rejects.toThrow("revoked");
+ await expect(processCase(env,a,steps)).rejects.toThrow("unavailable");
+ await reconcileControls(env);expect(sql.prepare("SELECT kind FROM benchmark_case_controls WHERE case_id=?").get(a.caseId)?.kind).toBe("DELETE");
+ expect(await getRun(db,b)).not.toBeNull();
+});
+it("refuses wrong Workflow identity before deletion",async()=>{
+ const {planDeletion}=await import("../../src/lib/benchmark/retention");const a=await saved();sql.prepare("UPDATE benchmark_runs SET state='COMPLETE'").run();
+ env.BENCHMARK.get=vi.fn(async()=>({id:crypto.randomUUID(),status:async()=>({status:"complete"})})) as any;
+ const plan=await planDeletion(env,a.caseId,new Date(Date.now()+31*86400000));expect(plan.eligible).toBe(false);expect(plan.blockers).toContain("Workflow identity mismatch");
+ expect(await env.BENCHMARK_CONTROL.get("case:"+a.caseId)).toBeNull();
+});
+
+it("preserves invitation revocation outside a restored D1 image",async()=>{
+ const {issueInvitation,revokeInvitation,assertInvitationUsable}=await import("../../src/lib/benchmark/admission");
+ const invite=await issueInvitation(db,new Date(Date.now()+86400000).toISOString());
+ await revokeInvitation(env,invite.hash);sql.prepare("UPDATE benchmark_invitations SET revoked_at=NULL WHERE secret_hash=?").run(invite.hash);
+ await expect(assertInvitationUsable(env,invite.hash,crypto.randomUUID())).rejects.toThrow("unavailable");
+});
+
+it("deletes every registered Workflow for one case and never the control case",async()=>{
+ const {planDeletion,deleteCase,retentionPolicyVersion}=await import("../../src/lib/benchmark/retention");
+ const a=await saved(),b=await saved(),secondRun=crypto.randomUUID();
+ sql.prepare("INSERT INTO benchmark_runs(case_id,run_id,evidence_hash,version,state,created_at,updated_at) SELECT case_id,?,evidence_hash,version,'COMPLETE',created_at,updated_at FROM benchmark_runs WHERE case_id=?").run(secondRun,a.caseId);
+ sql.prepare("UPDATE benchmark_runs SET state='COMPLETE' WHERE case_id=?").run(a.caseId);
+ const deleted=new Set<string>();env.BENCHMARK.get=vi.fn(async(id:string)=>{if(deleted.has(id))throw new Error("instance.not_found");return {id,status:async()=>({status:"complete"}),delete:async()=>{deleted.add(id);}};}) as any;
+ const now=new Date(Date.now()+31*86400000),plan=await planDeletion(env,a.caseId,now);expect(plan.runIds).toHaveLength(2);
+ await deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now);
+ expect(deleted).toEqual(new Set([a.runId,secondRun]));expect(await getRun(db,b)).not.toBeNull();
+});
+it("rechecks the approved plan after fencing and refuses a pre-fence mutation",async()=>{
+ const {planDeletion,deleteCase,retentionPolicyVersion}=await import("../../src/lib/benchmark/retention");
+ const a=await saved();sql.prepare("UPDATE benchmark_runs SET state='COMPLETE'").run();const deleteMethod=vi.fn();
+ env.BENCHMARK.get=vi.fn(async(id:string)=>({id,status:async()=>({status:"complete"}),delete:deleteMethod})) as any;
+ const now=new Date(Date.now()+31*86400000),plan=await planDeletion(env,a.caseId,now);
+ const original=db.prepare.bind(db);
+ db.prepare=((query:string)=>{const statement=original(query);if(query.startsWith("INSERT OR IGNORE INTO benchmark_case_controls")){const run=statement.run.bind(statement);statement.run=async()=>{sql.prepare("UPDATE benchmark_runs SET updated_at=? WHERE case_id=?").run(now.toISOString(),a.caseId);return run();};}return statement;}) as any;
+ await expect(deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now)).rejects.toThrow("before fence");
+ expect(deleteMethod).not.toHaveBeenCalled();expect(await getRun(db,a)).not.toBeNull();
+});
+
+it("polling is sequential, pauses hidden tabs and stops on release",async()=>{
+ const {pollCase}=await import("../../src/lib/benchmark/polling");vi.useFakeTimers();
+ try {
+  let resolve!:(value:{status:string;resultReady:boolean})=>void;
+  const load=vi.fn(()=>new Promise<{status:string;resultReady:boolean}>(r=>{resolve=r;}));const data=vi.fn();let visible=true;
+  const stop=pollCase(load,data,vi.fn(),()=>visible);await vi.advanceTimersByTimeAsync(60000);expect(load).toHaveBeenCalledTimes(1);
+  resolve({status:"HUMAN_REVIEW_REQUIRED",resultReady:false});await Promise.resolve();visible=false;
+  await vi.advanceTimersByTimeAsync(15000);expect(load).toHaveBeenCalledTimes(1);visible=true;
+  await vi.advanceTimersByTimeAsync(30000);expect(load).toHaveBeenCalledTimes(2);
+  resolve({status:"BENCHMARK_COMPLETE",resultReady:true});await Promise.resolve();await vi.advanceTimersByTimeAsync(240000);expect(load).toHaveBeenCalledTimes(2);stop();
+ } finally {vi.useRealTimers();}
+});
+it("polling stops permanently on capability denial",async()=>{
+ const {pollCase}=await import("../../src/lib/benchmark/polling");vi.useFakeTimers();
+ try {const load=vi.fn(async()=>{throw Object.assign(new Error("denied"),{status:403});});const stop=pollCase(load,vi.fn(),vi.fn(),()=>true);await vi.advanceTimersByTimeAsync(240000);expect(load).toHaveBeenCalledTimes(1);stop();}finally{vi.useRealTimers();}
 });

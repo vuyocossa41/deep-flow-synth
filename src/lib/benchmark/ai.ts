@@ -5,6 +5,8 @@ export async function analysis(
   counter: boolean,
   claims: Claim[] = [],
 ) {
+  if (env.BENCHMARK_AI_MODE !== "AUTHORIZED_AI")
+    return {claims: [] as Claim[], error: "AI_DISABLED: initial beta uses deterministic findings and human review."};
   if (!env.GROQ_API_KEY)
     return {
       claims: [] as Claim[],

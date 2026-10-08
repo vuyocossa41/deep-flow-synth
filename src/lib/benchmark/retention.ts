@@ -1,3 +1,4 @@
+import { recordControl, type ControlRecord } from "./control";
 import { digest, stable } from "./domain";
 const tables = ["benchmark_events", "benchmark_findings", "benchmark_permissions", "benchmark_runs", "benchmark_submissions"] as const;
 const terminal = new Set(["COMPLETE", "REJECTED", "INSUFFICIENT_EVIDENCE"]);
@@ -25,6 +26,7 @@ export async function planDeletion(env: Env, caseId: string, now: Date,
     if (!Number.isFinite(Date.parse(run.updated_at)) || run.updated_at > cutoff) blockers.push("Thirty-day retention not reached");
     try {
       const instance = await env.BENCHMARK.get(run.run_id);
+      if(instance.id!==run.run_id) {blockers.push("Workflow identity mismatch");continue;}
       const status = await instance.status();
       if (!["complete", "terminated"].includes(status.status)) blockers.push("Workflow active or retryable");
     } catch {
@@ -45,6 +47,25 @@ export async function deleteCase(env: Env, plan: DeletionPlan,
   const current = await planDeletion(env, plan.caseId, now, verifiedAbsentRunIds);
   if (!current.eligible || current.hash !== plan.hash) throw new Error("Dry-run changed or deletion unsafe");
   const receiptId = crypto.randomUUID(), total = Object.values(plan.counts).reduce((a,b)=>a+b,0);
+  const record:ControlRecord={caseId:plan.caseId,runIds:plan.runIds,kind:"DELETE",blockedAt:now.toISOString(),receiptId,policyVersion:retentionPolicyVersion,phase:"BLOCKED"};
+  await recordControl(env,record);
+  const frozen=await planDeletion(env,plan.caseId,now,verifiedAbsentRunIds);
+  if(!frozen.eligible || frozen.hash!==plan.hash) throw new Error("Case changed before fence; new approved plan required");
+  // Fences are durable before stopping/removing state. Never purge D1 on API failure.
+  for(const runId of plan.runIds) {
+    if(verifiedAbsentRunIds.includes(runId)) continue;
+    const instance=await env.BENCHMARK.get(runId);
+    if(instance.id!==runId) throw new Error("Workflow identity mismatch");
+    const handle=instance as typeof instance & {delete?:()=>Promise<void>};
+    if(!handle.delete) throw new Error("Workflow delete API unavailable; D1 preserved");
+    await handle.delete();
+    let absent=false;
+    try {await env.BENCHMARK.get(runId);} catch(error) {
+      // Only documented not-found is absence; permissions/timeouts are not proof.
+      absent=error instanceof Error && /instance[._ ]not[_ ]found/i.test(error.message);
+    }
+    if(!absent) throw new Error("Workflow deletion not verified; D1 preserved");
+  }
   const guarded = "EXISTS(SELECT 1 FROM benchmark_deletion_receipts WHERE receipt_id=?)";
   await env.BENCHMARK_DB.batch([
     env.BENCHMARK_DB.prepare(
@@ -58,5 +79,6 @@ export async function deleteCase(env: Env, plan: DeletionPlan,
     const row = await env.BENCHMARK_DB.prepare("SELECT COUNT(*) AS n FROM " + table + " WHERE case_id=?").bind(plan.caseId).first<{n:number}>();
     if (row?.n !== 0) throw new Error("Deletion verification failed");
   }
+  await recordControl(env,{...record,phase:"PURGED"});
   return receipt;
 }

@@ -1,3 +1,5 @@
+import { recordAdmissionForScope } from "./admission";
+import { assertScopeActive } from "./control";
 import { analysis } from "./ai";
 import {
   closeReport,
@@ -17,6 +19,7 @@ export interface Steps {
   waitForEvent(name: string, options: { type: string; timeout: "30 days" }): Promise<unknown>;
 }
 export async function release(env: Env, s: Scope) {
+  await assertScopeActive(env,s);
   const run = await getRun(env.BENCHMARK_DB, s);
   if (!run?.draft_json || !run.approved_at || !run.reviewer_subject)
     throw new Error("Human approval required");
@@ -48,11 +51,23 @@ export async function release(env: Env, s: Scope) {
   ]);
   return report;
 }
-export async function processCase(env: Env, s: Scope, step: Steps) {
+export async function processCase(env: Env, s: Scope, rawStep: Steps) {
+  const step:Steps={
+    do: async <T>(name:string,callback:()=>Promise<T>|T):Promise<T> => {
+      await assertScopeActive(env,s);
+      return rawStep.do(name,async()=>{await assertScopeActive(env,s);return callback();});
+    },
+    waitForEvent: async (name,options)=>{
+      await assertScopeActive(env,s);
+      const result=await rawStep.waitForEvent(name,options);
+      await assertScopeActive(env,s);return result;
+    }
+  };
   const input = await step.do("validation", async () => {
     const submission = await getSubmission(env.BENCHMARK_DB, s.caseId),
       run = await getRun(env.BENCHMARK_DB, s);
     if (!submission || !run) throw new Error("Case/run scope missing");
+    await recordAdmissionForScope(env,s);
     const input = intakeSchema.parse(JSON.parse(submission.evidence_json));
     if ((await digest(stable(input))) !== run.evidence_hash)
       throw new Error("Evidence identity changed");
@@ -76,18 +91,20 @@ export async function processCase(env: Env, s: Scope, step: Steps) {
     await state(env.BENCHMARK_DB, s, "BENCHMARKING");
     return deterministic(evidence);
   });
-  const model = await step.do("AI analysis", async () => {
+  const storedModel = await step.do("AI analysis", async () => {
     const p = await env.BENCHMARK_DB.prepare("SELECT ai FROM benchmark_permissions WHERE case_id=?")
       .bind(s.caseId)
       .first<{ ai: number }>();
     return p?.ai ? analysis(env, evidence, false) : { claims: [], error: null };
   });
-  const counter = await step.do("adversarial countercheck", async () => {
+  const model = env.BENCHMARK_AI_MODE === "AUTHORIZED_AI" ? storedModel : {claims:[],error:"AI_DISABLED: deterministic processing and human review only."};
+  const storedCounter = await step.do("adversarial countercheck", async () => {
     const p = await env.BENCHMARK_DB.prepare("SELECT ai FROM benchmark_permissions WHERE case_id=?")
       .bind(s.caseId)
       .first<{ ai: number }>();
     return p?.ai ? analysis(env, evidence, true, model.claims) : { claims: [], error: null };
   });
+  const counter = env.BENCHMARK_AI_MODE === "AUTHORIZED_AI" ? storedCounter : {claims:[],error:null};
   await step.do("human review gate", async () => {
     const findings: Finding[] = [
       ...checks,
@@ -139,6 +156,8 @@ export async function processCase(env: Env, s: Scope, step: Steps) {
   return step.do("Correction Map", () => release(env, s));
 }
 export async function start(env: Env, s: Scope) {
+  await assertScopeActive(env,s);
+  await recordAdmissionForScope(env,s);
   try {
     const existing = await env.BENCHMARK.get(s.runId);
     await existing.status();
@@ -147,7 +166,13 @@ export async function start(env: Env, s: Scope) {
     /* Missing instance: create with the immutable run ID. */
   }
   try {
-    await env.BENCHMARK.create({ id: s.runId, params: s });
+    await assertScopeActive(env,s);
+    const instance=await env.BENCHMARK.create({ id: s.runId, params: s });
+    try {await assertScopeActive(env,s);} catch(error) {
+      const handle=instance as typeof instance & {delete?:()=>Promise<void>};
+      if(handle.delete) await handle.delete();
+      throw error;
+    }
   } catch {
     const existing = await env.BENCHMARK.get(s.runId);
     await existing.status();
@@ -157,11 +182,14 @@ export async function recoverPending(env: Env) {
   const pending = await env.BENCHMARK_DB.prepare(
     "SELECT case_id,run_id FROM benchmark_runs WHERE state='PENDING' LIMIT 25",
   ).all<{ case_id: string; run_id: string }>();
-  for (const r of pending.results) await start(env, { caseId: r.case_id, runId: r.run_id });
+  for (const r of pending.results) {
+    try {await start(env,{caseId:r.case_id,runId:r.run_id});} catch { /* blocked or unavailable: do not bypass fence */ }
+  }
   const reviewed = await env.BENCHMARK_DB.prepare(
     "SELECT case_id,run_id FROM benchmark_runs WHERE state='REVIEW_REQUIRED' AND approved_at IS NOT NULL LIMIT 25",
   ).all<{ case_id: string; run_id: string }>();
   for (const r of reviewed.results) {
+    try {await assertScopeActive(env,{caseId:r.case_id,runId:r.run_id});} catch {continue;}
     const instance = await env.BENCHMARK.get(r.run_id);
     const status = await instance.status();
     if (status.status !== "complete")

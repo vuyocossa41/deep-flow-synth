@@ -1,3 +1,4 @@
+import { pollCase } from "../../lib/benchmark/polling";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { fields, stages, type Draft } from "@/lib/benchmark/domain";
 const button =
@@ -99,7 +100,7 @@ export async function api(path: string, init: RequestInit = {}) {
   const r = await fetch("/api/benchmark" + path, init);
   const data = await r.json();
   if (!r.ok)
-    throw new Error(
+    throw Object.assign(new Error(
       data.error +
         (data.fields
           ? " — " +
@@ -107,7 +108,7 @@ export async function api(path: string, init: RequestInit = {}) {
               .map((f: { field: string; message: string }) => f.field + ": " + f.message)
               .join("; ")
           : ""),
-    );
+    ), {status:r.status});
   return data;
 }
 export function SubmitPage() {
@@ -132,14 +133,14 @@ export function SubmitPage() {
     evidence.redacted = form.get("redacted") === "on";
     evidence.permissions = {
       process: form.get("process") === "on",
-      ai: form.get("ai") === "on",
+      ai: false,
       publication: false,
     };
     try {
       evidence.evidence = JSON.parse(String(form.get("extraEvidence") || "[]"));
       const data = await api("/submissions", {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": key },
+        headers: { "content-type": "application/json", "idempotency-key": key, "x-benchmark-invitation": String(form.get("invitation") || "").trim() },
         body: JSON.stringify({
           evidence,
           contact: {
@@ -189,6 +190,10 @@ export function SubmitPage() {
         prompts.
       </p>
       <form onSubmit={send} className="space-y-8">
+        <label className="block">Operator-issued invitation
+          <input name="invitation" type="password" required minLength={64} maxLength={64} autoComplete="off" className={input} />
+          <span className="text-sm text-muted-foreground">One closed case per invitation. Possession authorizes admission; participant identity is not independently verified.</span>
+        </label>
         <fieldset>
           <legend className="mb-4 text-xl font-semibold">Correction evidence</legend>
           <div className="grid gap-6 md:grid-cols-2">
@@ -280,13 +285,7 @@ export function SubmitPage() {
               <span>{label}</span>
             </label>
           ))}
-          <label className="flex items-start gap-3">
-            <input name="ai" type="checkbox" className="mt-1" />
-            <span>
-              I permit AI analysis of the redacted evidence. Optional; otherwise the map uses
-              structured findings and human review.
-            </span>
-          </label>
+          <p className="text-sm text-muted-foreground">AI_DISABLED: this initial beta uses deterministic findings and human review. Evidence is not sent to Groq.</p>
           <p className="text-sm text-muted-foreground">
             Publication permission is off. Submitting a case authorizes no customer claims, payment
             claims or accounting actions.
@@ -333,24 +332,11 @@ export function CasePage({ id }: { id: string }) {
     [error, setError] = useState("");
   useEffect(() => {
     if (!access) return;
-    let active = true;
-    const load = () =>
-      api("/cases/" + id, { headers: auth(access) })
-        .then((d) => {
-          if (active) {
-            setData(d);
-            setError("");
-          }
-        })
-        .catch((e) => {
-          if (active) setError(e.message);
-        });
-    load();
-    const timer = setInterval(load, 5000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
+    return pollCase(
+      () => api("/cases/" + id, { headers: auth(access) }),
+      d => {setData(d);setError("");},
+      e => setError(e instanceof Error ? e.message : "Status unavailable"),
+    );
   }, [id, access]);
   return (
     <Frame title="Your correction case">
