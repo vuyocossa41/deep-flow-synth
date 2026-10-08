@@ -23,6 +23,7 @@ function database() {
   const sql = new DatabaseSync(":memory:");
   sql.exec(readFileSync("migrations/0001_correction_benchmark.sql", "utf8"));
   sql.exec(readFileSync("migrations/0002_case_capability_revocation.sql", "utf8"));
+  sql.exec(readFileSync("migrations/0003_beta_safety.sql", "utf8"));
   class Statement {
     args: any[] = [];
     constructor(public query: string) {}
@@ -95,6 +96,7 @@ beforeEach(() => {
   sql = adapter.sql;
   env = {
     BENCHMARK_DB: db,
+    BENCHMARK_SUBMISSION_LIMIT: { limit: vi.fn(async () => ({ success: true })) },
     BENCHMARK_CASE_SECRET: "test-secret-with-at-least-32-characters",
     BENCHMARK_ORIGIN: "https://benchmark.test",
     BENCHMARK_MODEL: "llama-3.3-70b-versatile",
@@ -486,6 +488,7 @@ describe("persistence, capability and retry", () => {
         headers: {
           "content-type": "application/json",
           origin: env.BENCHMARK_ORIGIN,
+        "CF-Connecting-IP": "192.0.2.1",
           "Cf-Access-Jwt-Assertion": token,
         },
         body: JSON.stringify({
@@ -571,6 +574,7 @@ describe("additional retry and provider boundaries", () => {
       method: "POST",
       headers: {
         origin: env.BENCHMARK_ORIGIN,
+        "CF-Connecting-IP": "192.0.2.1",
         "content-type": "application/json",
         "idempotency-key": crypto.randomUUID(),
       },
@@ -671,5 +675,76 @@ describe("M1.1 private capability hardening", () => {
         .bind(a.caseId)
         .run(),
     ).rejects.toThrow("permanent");
+  });
+});
+
+describe("M1.4 submission and deletion safety", () => {
+  const ctx = () => ({ waitUntil: vi.fn() }) as unknown as ExecutionContext;
+  const request = (body = "{invalid") => new Request("https://benchmark.test/api/benchmark/submissions", {
+    method: "POST", headers: { origin: env.BENCHMARK_ORIGIN, "content-type":"application/json",
+      "CF-Connecting-IP":"192.0.2.55", "idempotency-key":crypto.randomUUID() }, body,
+  });
+  it("rejects excess before parsing, persistence and dispatch and recovers after reset", async () => {
+    let calls=0, window=0;
+    env.BENCHMARK_SUBMISSION_LIMIT = { limit: vi.fn(async () => ({ success: ++calls<=5 })) } as RateLimit;
+    for(let i=0;i<5;i++) expect((await benchmarkApi(request(),env,ctx())).status).toBe(400);
+    const context=ctx(), denied=await benchmarkApi(request(),env,context);
+    expect(denied.status).toBe(429); expect(denied.headers.get("retry-after")).toBe("60");
+    expect(sql.prepare("SELECT COUNT(*) n FROM benchmark_submissions").get()?.n).toBe(0);
+    expect(context.waitUntil).not.toHaveBeenCalled(); expect(env.BENCHMARK.create).not.toHaveBeenCalled();
+    calls=0; window+=60;
+    expect(window).toBe(60);
+    expect((await benchmarkApi(request(),env,ctx())).status).toBe(400);
+  });
+  it("fails closed without protection and never limits private reads or Scout paths", async () => {
+    env.BENCHMARK_SUBMISSION_LIMIT = undefined as unknown as RateLimit;
+    expect((await benchmarkApi(request(),env,ctx())).status).toBe(503);
+    const a=await saved(), token=await capability(env,a.caseId,a.runId);
+    expect((await benchmarkApi(new Request("https://benchmark.test/api/benchmark/cases/"+a.caseId,
+      {headers:{authorization:"Bearer "+token,"x-benchmark-run":a.runId}}),env,ctx())).status).toBe(200);
+    expect((await benchmarkApi(new Request("https://benchmark.test/api/scout"),env,ctx())).status).toBe(404);
+  });
+  it("enforces the global lifetime cap atomically and permits idempotent retry", async () => {
+    const key=crypto.randomUUID(), a=await submit(db,key,input(),contact);
+    for(let i=0;i<9;i++) await saved();
+    expect(await submit(db,key,input(),contact)).toEqual(a);
+    await expect(saved()).rejects.toThrow("BENCHMARK_CAP_REACHED");
+    expect(sql.prepare("SELECT COUNT(*) n FROM benchmark_runs").get()?.n).toBe(10);
+    const context=ctx();
+    expect((await benchmarkApi(request(JSON.stringify({evidence:input(),contact})),env,context)).status).toBe(429);
+    expect(context.waitUntil).not.toHaveBeenCalled();
+  });
+  it("deletes only an eligible synthetic case, denies its original capability and preserves control", async () => {
+    const {planDeletion,deleteCase,retentionPolicyVersion}=await import("../../src/lib/benchmark/retention");
+    const a=await saved(), b=await saved(), at=await capability(env,a.caseId,a.runId), bt=await capability(env,b.caseId,b.runId);
+    const steps=new ReplaySteps(); steps.crashOnce=true;
+    await expect(processCase(env,a,steps)).rejects.toThrow(); await approve(a); await processCase(env,a,steps);
+    const now=new Date(Date.now()+31*86400000);
+    env.BENCHMARK.get=vi.fn(async()=>({status:async()=>({status:"complete"})})) as any;
+    const plan=await planDeletion(env,a.caseId,now); expect(plan.eligible).toBe(true);
+    expect(plan.counts.benchmark_findings).toBeGreaterThan(0); expect(plan.counts.benchmark_events).toBeGreaterThan(0);
+    expect(await getRun(db,a)).not.toBeNull();
+    await expect(deleteCase(env,plan,{caseId:b.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now)).rejects.toThrow("approval");
+    const receipt=await deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now);
+    expect(JSON.stringify(receipt)).not.toContain(contact.workEmail); expect(JSON.stringify(receipt)).not.toContain(a.caseId);
+    const req=(token:string)=>new Request("https://benchmark.test",{headers:{authorization:"Bearer "+token}});
+    await expect(requireCase(req(at),env,a.caseId,a.runId)).rejects.toThrow();
+    await requireCase(req(bt),env,b.caseId,b.runId); expect(await getRun(db,b)).not.toBeNull();
+    expect(sql.prepare("SELECT accepted FROM benchmark_beta_capacity").get()?.accepted).toBe(2);
+    await expect(db.prepare("UPDATE benchmark_deletion_receipts SET deleted_rows=1").run()).rejects.toThrow("immutable");
+    await expect(db.prepare("DELETE FROM benchmark_deletion_receipts").run()).rejects.toThrow("immutable");
+  });
+  it("refuses active workflows, early retention and changed dry runs", async () => {
+    const {planDeletion,deleteCase,retentionPolicyVersion}=await import("../../src/lib/benchmark/retention");
+    const a=await saved(), now=new Date(Date.now()+31*86400000);
+    expect((await planDeletion(env,a.caseId,now)).eligible).toBe(false);
+    await db.prepare("UPDATE benchmark_runs SET state='INSUFFICIENT_EVIDENCE' WHERE case_id=?").bind(a.caseId).run();
+    expect((await planDeletion(env,a.caseId,now)).blockers).toContain("Workflow active or retryable");
+    env.BENCHMARK.get=vi.fn(async()=>({status:async()=>({status:"complete"})})) as any;
+    expect((await planDeletion(env,a.caseId,new Date())).eligible).toBe(false);
+    const plan=await planDeletion(env,a.caseId,now);
+    await db.prepare("UPDATE benchmark_runs SET updated_at=? WHERE case_id=?").bind(now.toISOString(),a.caseId).run();
+    await expect(deleteCase(env,plan,{caseId:a.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now)).rejects.toThrow("unsafe");
+    expect(await getRun(db,a)).not.toBeNull();
   });
 });

@@ -87,6 +87,19 @@ it("real D1 and Workflow persist a draft, wait for human approval and release th
     closeReport(report.findings, report.evidence);
     expect((await getRun(runtime.BENCHMARK_DB, scope))?.draft_json).toBe(draftRun?.draft_json);
     await waitOnExecutionContext(ctx);
+    // Isolated local runtime only: delete a completed synthetic case after simulated retention.
+    const { planDeletion, deleteCase, retentionPolicyVersion } = await import("../../src/lib/benchmark/retention");
+    const control = await submit(runtime.BENCHMARK_DB, crypto.randomUUID(), input(), contact);
+    const controlToken = await capability(runtime, control.caseId, control.runId);
+    const now = new Date(Date.now()+31*86400000);
+    const plan = await planDeletion(runtime, scope.caseId, now);
+    expect(plan.eligible).toBe(true);
+    await deleteCase(runtime, plan, {caseId:scope.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now);
+    expect((await benchmarkApi(request(), runtime, ctx)).status).toBe(403);
+    expect((await benchmarkApi(new Request("https://benchmark.test/api/benchmark/cases/"+control.caseId,
+      {headers:{authorization:"Bearer "+controlToken,"x-benchmark-run":control.runId}}),runtime,ctx)).status).toBe(200);
+    expect(await getRun(runtime.BENCHMARK_DB,scope)).toBeNull();
+
   } finally {
     await instance.dispose();
   }
@@ -105,6 +118,7 @@ it("submission API dispatches one immutable Workflow for duplicate POSTs", async
       headers: {
         "content-type": "application/json",
         origin: runtime.BENCHMARK_ORIGIN,
+        "CF-Connecting-IP": "192.0.2.1",
         "idempotency-key": key,
       },
       body,
@@ -161,3 +175,19 @@ it("enforces case revocation against the real D1 binding", async () => {
   await expect(requireCase(req(at), runtime, a.caseId, a.runId)).rejects.toThrow("revoked");
   await requireCase(req(bt), runtime, b.caseId, b.runId);
 });
+
+it("native rate-limit runtime rejects before D1 and recovers after the sixty-second window", async () => {
+  const ip="192.0.2."+Math.floor(Math.random()*200+20), ctx=createExecutionContext();
+  const count=async()=> (await runtime.BENCHMARK_DB.prepare("SELECT COUNT(*) n FROM benchmark_runs").first<{n:number}>())!.n;
+  const before=await count();
+  const req=()=>new Request("https://benchmark.test/api/benchmark/submissions",{method:"POST",
+    headers:{origin:runtime.BENCHMARK_ORIGIN,"content-type":"application/json","CF-Connecting-IP":ip,"idempotency-key":crypto.randomUUID()},body:"{invalid"});
+  for(let i=0;i<5;i++) expect((await benchmarkApi(req(),runtime,ctx)).status).toBe(400);
+  const rejected=await benchmarkApi(req(),runtime,ctx);
+  expect(rejected.status).toBe(429); expect(rejected.headers.get("retry-after")).toBe("60");
+  expect(await count()).toBe(before);
+  await new Promise(resolve=>setTimeout(resolve,61000));
+  expect((await benchmarkApi(req(),runtime,ctx)).status).toBe(400);
+  expect(await count()).toBe(before);
+  await waitOnExecutionContext(ctx);
+},90000);

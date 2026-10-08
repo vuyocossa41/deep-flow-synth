@@ -1,0 +1,58 @@
+# M1.4 controlled beta safety proposal
+
+Status: prepared in Codespaces, not deployed. No remote records deleted. Deployed baseline remains 3eafdbc7ac4f7e56f16e93b3af16b5d7345cfb4c.
+
+## Submission protection
+The authenticated account offers a native Rate limiter binding without an upgrade prompt. No binding was saved remotely. Proposed binding BENCHMARK_SUBMISSION_LIMIT uses namespace 10814001 and 5 requests per 60 seconds. Confirm namespace uniqueness across account Workers before upload. Protection is invoked exclusively for POST /api/benchmark/submissions before JSON parsing, D1 writes and Workflow dispatch. Trusted CF-Connecting-IP is SHA-256 hashed for an ephemeral limiter key; IP addresses are not stored by this change. Missing binding/header and limiter errors fail closed with 503; excess returns 429 and Retry-After: 60.
+
+Corporate NAT/mobile networks share a budget, including invalid submissions and retries. Provide operator-assisted rescheduling rather than a broad bypass. IPv6 address changes and distributed IPs evade the per-IP budget. Cloudflare counters are per serving location and eventually consistent: the limiter is permissive, not a strict global quota or billing control. See https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/.
+
+Migration 0003 adds a D1-transactional lifetime capacity of 10 accepted cases, seeded with the existing submission count. Idempotent duplicates do not consume capacity. Deletion never replenishes it. Once exhausted, submissions return 429; no new case/run or dispatch is created. This bounds distributed acquisition costs but DOES NOT authenticate invitations. An attacker can consume the remaining capacity. Invitation-only describes operator recruitment, not enforced identity. Before external release approve this risk explicitly or require a narrowly scoped admission control in a separately approved change. No enterprise WAF purchase is needed for the prepared approach.
+
+## Stored data inventory
+- benchmark_submissions: structured evidence_json, work contact_email, contact_permission, case ID, payload/idempotency hashes, timestamps, status, capability revoked_at. Evidence contains company type, role, stack, economic-change type, original state, change/time, affected systems, new evidence, decisions V1/V2, authorization, reversals, actions, verification, human work, unknown fields, permission/redaction attestations and evidence IDs. Free text can still contain personal information despite redaction validation.
+- benchmark_permissions: process, AI and publication flags plus case ID/timestamp. Publication is prohibited.
+- benchmark_runs: immutable run identity/evidence hash, draft_json and released report_json (both include evidence/findings), reviewer_subject, review_note, decision and timestamps.
+- benchmark_findings: material claims and provenance evidence IDs, classifications, stages and producers. Claims can reproduce submitted evidence.
+- benchmark_events: lifecycle payload_json; reviewer decision/note and generated findings may be duplicated here. Treat all payloads as potentially sensitive.
+- Workflows: durable input, step results/history can retain normalized evidence and reports independently of D1. Verify actual account Workflow history retention before release; D1 deletion does not erase this history.
+- benchmark_beta_capacity: aggregate lifetime counter only. benchmark_deletion_receipts: random receipt ID, deletion timestamp, policy version and deleted-row count; no case/run/contact/evidence/capability/reviewer identity.
+- Browser copies, operator downloads, Codespaces synthetic test artifacts and any exports are independent copies. Do not export external evidence to workspace files. Never log signed URLs or bearer tokens.
+- Worker Logs and Traces were disabled and no export destination was shown during account inspection. This does not prove Cloudflare platform/access/request logs contain no metadata. Inventory Access logging, provider retention and backups separately.
+
+Only five evidence-bearing tables exist in this deployed milestone. No partner or audit tables/flows are active. No contact metadata enters benchmark analysis. No Stripe, Resend or Queue is configured by this proposal.
+
+## Access matrix and observed administrator inventory
+Submitter: signed private case/run capability, 14-day validity, revocable; no draft before approval. Reviewer: Cloudflare Access restricted to vuyocossa41@gmail.com for both review path families; only necessary evidence/review operations. Contact metadata is not included in private benchmark reports or analysis. Database administrators can read all D1 columns and therefore need explicit controller authorization, MFA and minimum permissions.
+
+Account Members showed one member, vuyocossa41@gmail.com, with Entire account / Super Administrator - All Privileges. This exceeds routine reviewer needs; retain owner recovery access but distinguish owner operations from reviewer work.
+
+Account tokens: four active entries. cool-cloud-a5f8 (ID prefix edae61f2) has 273 permissions across the entire account, with D1 Read and D1 Edit selected: excessive for routine benchmark operation. Another cool-cloud-a5f8 (157bd09f) has Workers Scripts Write/KV Write among three permissions; script modification can indirectly access a bound D1 database. throbbing-violet-318d and old-meadow-b689 have Account API Tokens Write, enabling credential administration. Values were never opened.
+
+User API Tokens showed two active credentials with no expiration displayed: Cloudflare Agent Token - 2026-07-23 spans all accounts/all zones and includes D1 and Worker scripts; deep-flow-synth build token includes D1/Worker scripts and many unrelated services. The permission list does not distinguish read/edit levels, so those levels require owner review. Global API Key exists as a UI entry; it was not revealed. OAuth grants and downstream copies of credentials are not fully inventoried. No credentials were changed. Owner must identify uses and remove/narrow unnecessary grants safely under separate approval.
+
+## Retention proposal requiring explicit approval
+Controller legal identity, privacy contact and jurisdiction are NOT supplied and must not be invented. Proposed beta-30d-v1: unconverted beta evidence, contact metadata and all derived D1 reports/review records expire 30 days after terminal case closure, using latest run updated_at as a conservative technical anchor. Contact is deleted with the case; no marketing reuse. Active or pending cases cannot remain indefinitely: operator reviews unresolved cases weekly and seeks explicit closure/termination approval where necessary. The module refuses active instances; it does not terminate them.
+
+Approval must identify policy version, responsible operator, disclosure text, permitted legal exceptions and backup/history handling. There is no automatic purge and no assumed policy approval. Before intake, display the controller/contact, purpose and lawful basis, exact collected fields, Cloudflare processing, reviewer/admin access, redacted-structured-only restriction, 14-day link expiry distinct from 30-day retention, deletion process, and bounded residual backups/logs. Do not promise immediate deletion from every backup. No financial/customer claims or publication follow automatically.
+
+## Operational deletion runbook
+Prepared operator-only module src/lib/benchmark/retention.ts exports planDeletion and deleteCase; no public purge endpoint or scheduler is introduced. Assign an operator and a protected execution process before launch. Run daily metadata-only dry-runs and keep an approval-controlled case list. The module by itself is not a deployed retention service.
+
+1. Obtain explicit policy approval and separate case-specific deletion approval. Never delete existing remote records under this proposal.
+2. Freeze case administration/restarts while executing. Read metadata-only dry-run: five table row counts, run IDs, last update, blockers and plan hash. Require each DB run terminal and older than 30 days and each Workflow complete/terminated. Any Workflow error blocks deletion. Only independently verified expired/not-found instances may be included in verifiedAbsentRunIds; never treat authentication/network failures as absence.
+3. Review the exact plan and record operator approval of case ID, plan hash, policy version and approval time. Use the same frozen as-of timestamp for plan and execution; a changed plan requires another dry-run and approval. Do not falsify time to bypass retention in production.
+4. Revalidate the plan and Workflow states immediately before deletion. D1 batch atomically guards terminal state/latest update, inserts a non-sensitive receipt, and deletes events, findings, permissions, runs, then submission, all scoped by case ID. Receipt update/delete triggers prohibit ordinary SQL mutation; a privileged administrator can still alter schema, so this is not tamper-proof against administrators.
+5. Verify zero rows in every case-scoped table, original capability denial and an unrelated control case intact. Retain the non-sensitive receipt indefinitely; protect any necessary external approval ledger and minimize its identifiers. Do not reopen lifetime admission capacity.
+6. Separately verify Workflow history and backups expire according to the actual plan. D1 Time Travel and any exports can retain deleted data temporarily. Establish verified maximum retention and a restore procedure that re-applies approved deletions before restored data is made accessible. Remove authorized exports/copies under their own approved process. Avoid exposing evidence in logs or verification output.
+7. Escalate suspected exposure to the designated operator immediately, pause intake through approved controls, preserve minimal incident evidence, revoke affected case capabilities, and review administrator access. Controller assesses applicable notification requirements. No legal identity or notification deadline is assumed.
+
+## Verification and deployment gate
+Tests use synthetic data in isolated SQLite/Cloudflare runtime fixtures; simulated retention ages do not authorize remote deletion. Required checks: unit, runtime D1/Workflow, strict TypeScript and production build. Native limiter test must demonstrate 429, no new rows/dispatch and recovery after 60 seconds. Deletion test must exercise all dependent tables, receipt immutability, old capability denial, unrelated-case preservation, active Workflow blocking and stale-plan refusal. Existing provenance/UNKNOWN/privacy/isolation/revocation tests remain required.
+
+No external beta GO until owner approves policy/controller disclosures and admission risk, resolves excessive credential scope and backup/history inventory, approves migration/binding deployment, and validates deployed enforcement. Stop before deployment and before any remote deletion. The 10-case cap can block immediately if existing count is already ten or more; inspect counts before approving migration. No Scout, C04/Shadow, GTM, Stripe or Resend changes.
+
+
+## Recorded isolated verification
+
+2026-10-08: test:benchmark 28/28 passed; test:benchmark:runtime 4/4 passed (including a real 61-second limiter reset and completed Workflow deletion fixture); check:benchmark passed; build passed. Runtime fixtures emitted Miniflare Workflow engine/not-found/hung-request diagnostics while all assertions passed and the process exited zero. Retain these as a simulator limitation, not evidence of a remote production fault. No live rate-limit deployment or enforcement test was performed because deployment requires separate approval.

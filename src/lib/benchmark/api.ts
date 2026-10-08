@@ -1,3 +1,4 @@
+import { protectSubmission } from "./protection";
 import { z } from "zod";
 import { closeReport, normalize, submissionSchema, type Draft } from "./domain";
 import { capability, HttpError, origin, readJson, requireCase, requireReviewer } from "./security";
@@ -18,6 +19,7 @@ export async function benchmarkApi(request: Request, env: Env, ctx: ExecutionCon
     const path = new URL(request.url).pathname.replace("/api/benchmark", "");
     if (request.method !== "GET") origin(request, env);
     if (path === "/submissions" && request.method === "POST") {
+      await protectSubmission(request, env);
       if (!env.BENCHMARK_CASE_SECRET || env.BENCHMARK_CASE_SECRET.length < 32)
         throw new HttpError(503, "Private case access not configured");
       const key = request.headers.get("idempotency-key");
@@ -142,7 +144,13 @@ export async function benchmarkApi(request: Request, env: Env, ctx: ExecutionCon
         },
         400,
       );
-    if (error instanceof HttpError) return json({ error: error.message }, error.status);
+    if (error instanceof HttpError) {
+      const response = json({ error: error.message }, error.status);
+      if (error.status === 429) response.headers.set("retry-after", "60");
+      return response;
+    }
+    if (error instanceof Error && error.message.includes("BENCHMARK_CAP_REACHED"))
+      return json({ error: "Invitation beta capacity reached; contact the operator" }, 429);
     if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT")
       return json({ error: "Submission key already used with different content" }, 409);
     console.error(JSON.stringify({ component: "benchmark-api", error: "Request failed" }));
