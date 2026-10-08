@@ -100,13 +100,16 @@ it("real D1 and Workflow persist a draft, wait for human approval and release th
     expect((await getRun(runtime.BENCHMARK_DB, scope))?.draft_json).toBe(draftRun?.draft_json);
     await waitOnExecutionContext(ctx);
     // Isolated local runtime only: delete a completed synthetic case after simulated retention.
-    const { planDeletion, deleteCase, retentionPolicyVersion } = await import("../../src/lib/benchmark/retention");
+    const {operate,requestHash} = await import("../../scripts/benchmark-operator/core");
     const control = await submit(runtime.BENCHMARK_DB, crypto.randomUUID(), input(), contact);
     const controlToken = await capability(runtime, control.caseId, control.runId);
     const now = new Date(Date.now()+31*86400000);
-    const plan = await planDeletion(runtime, scope.caseId, now);
+    const plan = await operate(runtime,{operation:"plan",caseId:scope.caseId},"isolated-runtime",undefined,now) as import("../../src/lib/benchmark/retention").DeletionPlan;
     expect(plan.eligible).toBe(true);
-    await deleteCase(runtime, plan, {caseId:scope.caseId,planHash:plan.hash,policyVersion:retentionPolicyVersion,approvedAt:now.toISOString()},now);
+    const deletion={operation:"delete",caseId:scope.caseId,plan};
+    const approval={requestHash:await requestHash(deletion,"isolated-runtime"),target:"isolated-runtime",owner:"vuyocossa41@gmail.com",approvedAt:now.toISOString(),expiresAt:new Date(now.getTime()+60000).toISOString(),policyVersion:"beta-30d-v1"};
+    await operate(runtime,deletion,"isolated-runtime",approval,new Date(now.getTime()+1000));
+    expect(await operate(runtime,{operation:"verify",caseId:scope.caseId},"isolated-runtime")).toMatchObject({d1Empty:true,workflowAbsent:true,controlFencePresent:true});
     expect((await benchmarkApi(request(), runtime, ctx)).status).toBe(403);
     expect((await benchmarkApi(new Request("https://benchmark.test/api/benchmark/cases/"+control.caseId,
       {headers:{authorization:"Bearer "+controlToken,"x-benchmark-run":control.runId}}),runtime,ctx)).status).toBe(200);
